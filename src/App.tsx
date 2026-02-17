@@ -5,6 +5,7 @@ import { Dashboard } from "./pages/Dashboard.tsx";
 import { POS } from "./pages/POS.tsx";
 import { Settings } from "./pages/Settings.tsx";
 import { Login } from "./pages/auth/Login.tsx";
+import { SalesHistory } from "./pages/SalesHistory.tsx";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -38,6 +39,8 @@ function App() {
         return <POS />;
       case "settings":
         return <Settings />;
+      case "sales-history":
+        return <SalesHistory onPageChange={setCurrentPage} />;
       default:
         return <Dashboard />;
     }

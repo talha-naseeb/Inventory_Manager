@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CreditCard, Banknote, CheckCircle2, Leaf, Printer } from "lucide-react";
 import { Button } from "../ui/Button";
 import { usePOSStore } from "../../store/usePOSStore";
+import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
 import { ReceiptPreview } from "./ReceiptPreview";
 
@@ -15,6 +16,8 @@ interface CheckoutModalProps {
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess, initialPaymentMethod }) => {
   const { total, subtotal, discount, customerName, cart, clearCart } = usePOSStore();
+  const { businessDetails } = useThemeStore(); // Added
+  const currency = businessDetails.currency; // Added
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi" | null>(null);
 
   useEffect(() => {
@@ -77,7 +80,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               </div>
 
               <div id='printable-receipt' className='bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl overflow-auto max-h-[350px] scrollbar-hide border border-slate-100 dark:border-dark-border'>
-                <ReceiptPreview />
+                <ReceiptPreview items={cart} subtotal={subtotal} discount={discount} total={total} customerName={customerName || undefined} paymentMethod={paymentMethod || undefined} />
               </div>
 
               <div className='flex flex-col sm:flex-row gap-3 w-full max-w-sm'>
@@ -118,28 +121,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                   </div>
                   <div className='space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-hide'>
                     {cart.map((item) => (
-                      <div key={item.productId} className='flex justify-between text-sm'>
+                      <div key={item.id} className='flex justify-between text-sm'>
                         <span className='text-slate-600 dark:text-slate-400'>
                           {item.name} <span className='text-slate-400 ml-1'>x{item.quantity}</span>
                         </span>
-                        <span className='font-medium'>Rs. {item.total.toFixed(2)}</span>
+                        <span className='font-medium'>
+                          {currency} {item.total.toFixed(2)}
+                        </span>
                       </div>
                     ))}
                   </div>
                   <div className='pt-4 border-t border-slate-100 dark:border-dark-border space-y-2'>
                     <div className='flex justify-between text-sm'>
                       <span className='text-slate-500'>Subtotal</span>
-                      <span>Rs. {subtotal.toFixed(2)}</span>
+                      <span>
+                        {currency} {subtotal.toFixed(2)}
+                      </span>
                     </div>
                     {discount > 0 && (
                       <div className='flex justify-between text-sm text-emerald-600 dark:text-emerald-400 font-medium'>
                         <span>Discount</span>
-                        <span>-Rs. {discount.toFixed(2)}</span>
+                        <span>
+                          -{currency} {discount.toFixed(2)}
+                        </span>
                       </div>
                     )}
                     <div className='flex justify-between text-lg font-bold font-display pt-2'>
                       <span>Total</span>
-                      <span className='text-primary'>Rs. {total.toFixed(2)}</span>
+                      <span className='text-primary'>
+                        {currency} {total.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </div>

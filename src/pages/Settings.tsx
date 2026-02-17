@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Palette, Store, Users, Settings as SettingsIcon } from "lucide-react";
+import { Palette, Store, Users, Settings as SettingsIcon, Sliders } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ThemeSettings } from "../components/settings/ThemeSettings";
 import { BusinessSettings } from "../components/settings/BusinessSettings";
 import { StaffSettings } from "../components/settings/StaffSettings";
+import { SystemSettings } from "../components/settings/SystemSettings";
 
-type TabType = "theme" | "business" | "staff";
+type TabType = "theme" | "business" | "staff" | "system";
 
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>("theme");
@@ -14,6 +15,7 @@ export const Settings: React.FC = () => {
   const tabs = [
     { id: "theme", label: "Theme & Style", icon: <Palette size={18} /> },
     { id: "business", label: "Shop Details", icon: <Store size={18} /> },
+    { id: "system", label: "System Preferences", icon: <Sliders size={18} /> },
     { id: "staff", label: "Staff & Roles", icon: <Users size={18} /> },
   ];
 
@@ -50,6 +52,7 @@ export const Settings: React.FC = () => {
           <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
             {activeTab === "theme" && <ThemeSettings />}
             {activeTab === "business" && <BusinessSettings />}
+            {activeTab === "system" && <SystemSettings />}
             {activeTab === "staff" && <StaffSettings />}
           </motion.div>
         </AnimatePresence>

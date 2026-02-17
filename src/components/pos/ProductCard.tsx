@@ -3,27 +3,33 @@ import type { Product } from "../../types";
 import { Card } from "../ui/Card";
 import { Plus, Minus } from "lucide-react";
 import { usePOSStore } from "../../store/usePOSStore";
+import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
 
 interface ProductCardProps {
   product: Product;
+  wholesaleMode?: boolean;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode = false }) => {
   const { cart, addItem, updateQuantity } = usePOSStore();
+  const { businessDetails } = useThemeStore();
+  const currency = businessDetails.currency;
 
-  const cartItem = cart.find((item) => item.productId === product.id);
+  const priceType: "retail" | "wholesale" = wholesaleMode ? "wholesale" : "retail";
+  const itemId = `${product.id}-${priceType}`;
+  const cartItem = cart.find((item) => item.id === itemId);
   const quantity = cartItem?.quantity || 0;
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addItem(product);
+    addItem(product, wholesaleMode);
   };
 
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (quantity > 0) {
-      updateQuantity(product.id, quantity - 1);
+      updateQuantity(itemId, quantity - 1);
     }
   };
 
@@ -31,7 +37,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     <Card
       className={cn(
         "group flex flex-col overflow-hidden transition-all border-slate-100 dark:border-dark-border bg-white dark:bg-dark-surface shadow-sm hover:shadow-md cursor-default p-4 h-[fit-content] gap-4 flex-[1_1_200px] min-w-[200px] max-w-[250px]",
-        quantity > 0 && "border-primary/40 ring-1 ring-primary/10",
+        quantity > 0 && (wholesaleMode ? "border-amber-400 ring-1 ring-amber-100 dark:ring-amber-900/20" : "border-primary/40 ring-1 ring-primary/10"),
       )}
     >
       {/* Top Section: Image + Info */}
@@ -56,9 +62,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       {/* Bottom Section: Price Left, Controls Right */}
       <div className='flex items-center justify-between mt-auto pt-1'>
         {/* Price Left */}
-        <div className='flex items-baseline gap-0.5 text-slate-900 dark:text-white'>
-          <span className='text-[10px] font-black'>Rs.</span>
-          <span className='text-sm sm:text-base font-black leading-none'>{product.price.toFixed(1)}</span>
+        <div className='flex flex-col'>
+          <div className={cn("flex items-baseline gap-0.5", wholesaleMode ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white")}>
+            <span className='text-[10px] font-black'>{currency}</span>
+            <span className='text-sm sm:text-base font-black leading-none'>{(wholesaleMode ? product.wholesalePrice : product.price).toFixed(1)}</span>
+          </div>
+          {wholesaleMode && <span className='text-[8px] font-black uppercase text-amber-500 tracking-tighter'>Wholesale Tier</span>}
         </div>
 
         {/* Quantity Controls Right */}
@@ -80,7 +89,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
           <button
             onClick={handleIncrement}
-            className='w-7 h-7 flex items-center justify-center bg-primary text-white rounded-full hover:bg-primary/90 shadow-md shadow-primary/20 transition-all active:scale-90'
+            className={cn(
+              "w-7 h-7 flex items-center justify-center text-white rounded-full shadow-md transition-all active:scale-90",
+              wholesaleMode ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/20" : "bg-primary hover:bg-primary/90 shadow-primary/20",
+            )}
           >
             <Plus size={14} strokeWidth={3} />
           </button>

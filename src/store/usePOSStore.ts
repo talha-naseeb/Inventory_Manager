@@ -2,14 +2,14 @@ import { create } from "zustand";
 import type { Product, OrderItem } from "../types";
 
 interface CartItem extends OrderItem {
-  id: string; // productId for easier mapping
+  id: string; // unique cart item id (e.g., productId-priceType)
 }
 
 interface POSState {
   cart: CartItem[];
-  addItem: (product: Product) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  addItem: (product: Product, isWholesale?: boolean) => void;
+  removeItem: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
   reorderCart: (newCart: CartItem[]) => void;
   clearCart: () => void;
   subtotal: number;
@@ -20,15 +20,17 @@ interface POSState {
   discountType: "fixed" | "percent";
   discountValue: number;
   customerName: string;
+  storeCredit: number;
   setTaxEnabled: (enabled: boolean) => void;
   setDiscount: (value: number, type: "fixed" | "percent") => void;
   setCustomerName: (name: string) => void;
+  setStoreCredit: (amount: number) => void;
 }
 
 const TAX_RATE = 0.08; // 8%
 
 export const usePOSStore = create<POSState>((set, get) => {
-  const calculateTotals = (cart: CartItem[], isTaxEnabled: boolean, discountValue: number, discountType: "fixed" | "percent") => {
+  const calculateTotals = (cart: CartItem[], isTaxEnabled: boolean, discountValue: number, discountType: "fixed" | "percent", storeCredit: number) => {
     const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
 
     let discount = 0;
@@ -40,7 +42,7 @@ export const usePOSStore = create<POSState>((set, get) => {
 
     const subtotalAfterDiscount = Math.max(0, subtotal - discount);
     const tax = isTaxEnabled ? subtotalAfterDiscount * TAX_RATE : 0;
-    const total = subtotalAfterDiscount + tax;
+    const total = Math.max(0, subtotalAfterDiscount + tax - storeCredit);
 
     return { subtotal, tax, discount, total };
   };
@@ -55,61 +57,72 @@ export const usePOSStore = create<POSState>((set, get) => {
     discountType: "fixed",
     discountValue: 0,
     customerName: "Cash Customer",
+    storeCredit: 0,
 
-    setCustomerName: (name) => set({ customerName: name }),
+    setCustomerName: (name: string) => set({ customerName: name }),
 
-    setTaxEnabled: (enabled) => {
-      const { cart, discountValue, discountType } = get();
-      set({ isTaxEnabled: enabled, ...calculateTotals(cart, enabled, discountValue, discountType) });
-    },
-
-    setDiscount: (value, type) => {
-      const { cart, isTaxEnabled } = get();
-      set({ discountValue: value, discountType: type, ...calculateTotals(cart, isTaxEnabled, value, type) });
-    },
-
-    addItem: (product) => {
+    setStoreCredit: (amount: number) => {
       const { cart, isTaxEnabled, discountValue, discountType } = get();
-      const existingItem = cart.find((item) => item.productId === product.id);
+      set({ storeCredit: amount, ...calculateTotals(cart, isTaxEnabled, discountValue, discountType, amount) });
+    },
+
+    setTaxEnabled: (enabled: boolean) => {
+      const { cart, discountValue, discountType, storeCredit } = get();
+      set({ isTaxEnabled: enabled, ...calculateTotals(cart, enabled, discountValue, discountType, storeCredit) });
+    },
+
+    setDiscount: (value: number, type: "fixed" | "percent") => {
+      const { cart, isTaxEnabled, storeCredit } = get();
+      set({ discountValue: value, discountType: type, ...calculateTotals(cart, isTaxEnabled, value, type, storeCredit) });
+    },
+
+    addItem: (product: Product, isWholesale = false) => {
+      const { cart, isTaxEnabled, discountValue, discountType, storeCredit } = get();
+      const priceToUse = isWholesale ? product.wholesalePrice : product.price;
+      const priceType: "retail" | "wholesale" = isWholesale ? "wholesale" : "retail";
+      const itemId = `${product.id}-${priceType}`;
+
+      const existingItem = cart.find((item) => item.id === itemId);
 
       let newCart;
       if (existingItem) {
-        newCart = cart.map((item) => (item.productId === product.id ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price } : item));
+        newCart = cart.map((item) => (item.id === itemId ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price } : item));
       } else {
         newCart = [
           ...cart,
           {
-            id: product.id,
+            id: itemId,
             productId: product.id,
             name: product.name,
             quantity: 1,
-            price: product.price,
-            total: product.price,
+            price: priceToUse,
+            total: priceToUse,
+            priceType,
           },
         ];
       }
 
-      set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType) });
+      set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType, storeCredit) });
     },
 
-    removeItem: (productId) => {
-      const { cart, isTaxEnabled, discountValue, discountType } = get();
-      const newCart = cart.filter((item) => item.productId !== productId);
-      set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType) });
+    removeItem: (id: string) => {
+      const { cart, isTaxEnabled, discountValue, discountType, storeCredit } = get();
+      const newCart = cart.filter((item) => item.id !== id);
+      set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType, storeCredit) });
     },
 
-    updateQuantity: (productId, quantity) => {
+    updateQuantity: (id: string, quantity: number) => {
       if (quantity <= 0) {
-        get().removeItem(productId);
+        get().removeItem(id);
         return;
       }
 
-      const { cart, isTaxEnabled, discountValue, discountType } = get();
-      const newCart = cart.map((item) => (item.productId === productId ? { ...item, quantity, total: quantity * item.price } : item));
-      set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType) });
+      const { cart, isTaxEnabled, discountValue, discountType, storeCredit } = get();
+      const newCart = cart.map((item) => (item.id === id ? { ...item, quantity, total: quantity * item.price } : item));
+      set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType, storeCredit) });
     },
 
-    reorderCart: (newCart) => {
+    reorderCart: (newCart: CartItem[]) => {
       set({ cart: newCart });
     },
 
@@ -122,6 +135,7 @@ export const usePOSStore = create<POSState>((set, get) => {
         total: 0,
         discountValue: 0,
         customerName: "Cash Customer",
+        storeCredit: 0,
       }),
   };
 });

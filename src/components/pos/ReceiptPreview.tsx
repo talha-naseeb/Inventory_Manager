@@ -1,115 +1,133 @@
 import React from "react";
-import { Card } from "../ui/Card";
-import { usePOSStore } from "../../store/usePOSStore";
+import { Receipt, MapPin, Phone, Info, ShoppingBag } from "lucide-react";
+import { format } from "date-fns";
+import type { OrderItem } from "../../types";
+import { useThemeStore } from "../../store/useThemeStore";
+import { cn } from "../../lib/utils";
 
-export const ReceiptPreview: React.FC = () => {
-  const { cart, subtotal, total, customerName, discount } = usePOSStore();
-  const date = new Date().toLocaleDateString();
-  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const orderNo = Math.floor(100000 + Math.random() * 900000);
+interface ReceiptPreviewProps {
+  items: OrderItem[];
+  subtotal: number;
+  discount: number;
+  total: number;
+  customerName?: string;
+  paymentMethod?: string;
+  orderNo?: string;
+  date?: string;
+}
+
+export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({ items, subtotal, discount, total, customerName, paymentMethod, orderNo: providedOrderNo, date: providedDate }) => {
+  const { businessDetails } = useThemeStore();
+  const date = providedDate || format(new Date(), "dd MMM yyyy, hh:mm a");
+  const orderNo = providedOrderNo || Math.floor(100000 + Math.random() * 900000).toString();
 
   return (
-    <Card className='w-[300px] p-6 bg-white text-slate-900 border-none shadow-none font-mono text-[10px] leading-relaxed select-none'>
-      {/* Brand Header */}
-      <div className='text-center space-y-1 mb-4'>
-        <h2 className='text-base font-black uppercase tracking-tighter'>InventoriMan</h2>
-        <div className='text-[8px] space-y-0.5 text-slate-500'>
-          <p>123 Business Avenue, Karachi, Pakistan</p>
-          <p>Contact: +92 (300) 000-0000</p>
+    <div id='printable-receipt' className='bg-white text-slate-900 p-8 max-w-[400px] mx-auto shadow-2xl border border-slate-100 font-mono text-[11px] leading-relaxed'>
+      {/* Header */}
+      <div className='text-center space-y-1.5 mb-6 pb-6 border-b border-dashed border-slate-200'>
+        <div className='w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg'>
+          <Receipt size={28} />
+        </div>
+        <h1 className='text-lg font-black uppercase tracking-tighter text-slate-900'>{businessDetails.name}</h1>
+        <div className='flex flex-col items-center gap-0.5 text-slate-500 font-bold uppercase text-[9px]'>
+          <div className='flex items-center gap-1'>
+            <MapPin size={10} />
+            <span>{businessDetails.address}</span>
+          </div>
+          <div className='flex items-center gap-3'>
+            <div className='flex items-center gap-1'>
+              <Phone size={10} />
+              <span>{businessDetails.phone}</span>
+            </div>
+            {businessDetails.ntn && (
+              <div className='flex items-center gap-1 border-l border-slate-200 pl-3'>
+                <Info size={10} />
+                <span>NTN: {businessDetails.ntn}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       <div className='border-t border-dashed border-slate-300 my-3' />
 
       {/* Sale Info */}
-      <div className='space-y-1 mb-3'>
-        <div className='flex justify-between font-bold'>
-          <span>ORDER NO:</span>
-          <span>#{orderNo}</span>
-        </div>
-        <div className='flex justify-between'>
-          <span>DATE:</span>
-          <span>{date}</span>
-        </div>
-        <div className='flex justify-between'>
-          <span>TIME:</span>
-          <span>{time}</span>
-        </div>
-        {customerName && (
-          <div className='flex justify-between border-t border-slate-100 pt-1 mt-1'>
-            <span className='font-bold uppercase'>CUSTOMER:</span>
-            <span className='truncate ml-2'>{customerName.toUpperCase()}</span>
-          </div>
-        )}
+      <div className='space-y-1.5 mb-4'>
+        {[
+          { label: "ORDER NO", value: `#${orderNo}` },
+          { label: "DATE", value: date },
+          paymentMethod ? { label: "PAYMENT", value: paymentMethod.toUpperCase() } : null,
+          customerName ? { label: "CUSTOMER", value: customerName.toUpperCase() } : null,
+        ]
+          .filter(Boolean)
+          .map((info, idx) => (
+            <div key={idx} className='flex justify-between items-baseline gap-4'>
+              <span className='text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0'>{info!.label}:</span>
+              <span className={cn("text-right font-bold text-slate-900 truncate", info!.label === "ORDER NO" ? "text-[12px] tracking-tight" : "text-[10px]")}>{info!.value}</span>
+            </div>
+          ))}
       </div>
 
       <div className='border-t border-slate-900 my-2' />
 
-      {/* Items Table Header */}
-      <div className='flex justify-between font-bold mb-1 border-b border-slate-100 pb-1'>
-        <span className='flex-1'>ITEM</span>
-        <span className='w-12 text-center'>QTY</span>
-        <span className='w-16 text-right'>TOTAL</span>
-      </div>
+      {/* Items */}
+      <div className='space-y-4 mb-8'>
+        <div className='flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 pb-2 border-b border-slate-100'>
+          <ShoppingBag size={10} />
+          <span>Order Items</span>
+        </div>
 
-      {/* Items List */}
-      <div className='space-y-1.5 mb-3'>
-        {cart.map((item) => (
-          <div key={item.productId} className='flex justify-between items-start'>
-            <div className='flex-1 pr-2 uppercase'>
-              <div className='font-medium'>{item.name}</div>
-              <div className='text-[8px] text-slate-500'>Rs. {item.price.toFixed(2)} / unit</div>
+        {items.map((item, idx) => (
+          <div key={idx} className='space-y-1'>
+            <div className='flex justify-between items-start gap-4'>
+              <span className='font-bold text-slate-900 leading-tight uppercase'>{item.name}</span>
+              <span className='font-bold text-slate-900 whitespace-nowrap pt-0.5'>
+                {businessDetails.currency} {item.total.toFixed(2)}
+              </span>
             </div>
-            <span className='w-12 text-center'>{item.quantity}</span>
-            <span className='w-16 text-right font-medium'>Rs. {item.total.toFixed(2)}</span>
+            <div className='flex justify-between items-center text-[9px] text-slate-400 font-bold uppercase italic pl-1'>
+              <span>
+                {businessDetails.currency} {item.price.toFixed(2)} x {item.quantity}
+              </span>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className='border-t border-dashed border-slate-300 my-3' />
-
-      {/* Totals Section */}
-      <div className='space-y-1'>
-        <div className='flex justify-between'>
-          <span>SUBTOTAL:</span>
-          <span>Rs. {subtotal.toFixed(2)}</span>
+      {/* Summary */}
+      <div className='space-y-2 border-t-2 border-slate-900 pt-4'>
+        <div className='flex justify-between items-center text-slate-500 font-bold uppercase text-[10px]'>
+          <span>Subtotal</span>
+          <span>
+            {businessDetails.currency} {subtotal.toFixed(2)}
+          </span>
         </div>
         {discount > 0 && (
-          <div className='flex justify-between text-slate-600'>
-            <span>DISCOUNT:</span>
-            <span>-Rs. {discount.toFixed(2)}</span>
+          <div className='flex justify-between items-center text-emerald-600 font-bold uppercase text-[10px]'>
+            <span>Discount</span>
+            <span>
+              -{businessDetails.currency} {discount.toFixed(2)}
+            </span>
           </div>
         )}
-        <div className='flex justify-between font-black text-xs pt-2 border-t border-slate-200 mt-1'>
-          <span>PAYABLE TOTAL:</span>
-          <span>Rs. {total.toFixed(2)}</span>
+        <div className='flex justify-between items-center pt-3 mt-1 border-t border-dashed border-slate-200'>
+          <span className='text-[12px] font-black uppercase tracking-widest text-slate-900'>Total Amount</span>
+          <span className='text-xl font-black text-slate-900'>
+            {businessDetails.currency} {total.toFixed(2)}
+          </span>
         </div>
       </div>
 
-      <div className='border-t border-dashed border-slate-300 my-4' />
-
-      {/* Footer Branding */}
-      <div className='text-center space-y-3'>
-        <div className='space-y-1'>
-          <p className='font-bold text-[9px] uppercase tracking-widest'>Thank you for your visit!</p>
-          <p className='text-[8px] text-slate-500 italic'>Software Solution by SyntaxPulse</p>
+      {/* Footer Message */}
+      <div className='mt-8 pt-6 border-t border-dashed border-slate-200 text-center space-y-2'>
+        <p className='font-bold uppercase tracking-widest text-[9px] text-slate-400'>~ {businessDetails.footerMessage || "Thank you for your visit"} ~</p>
+        <div className='flex items-center justify-center gap-2 opacity-30'>
+          <div className='h-1 w-1 rounded-full bg-slate-900' />
+          <div className='h-1 w-1 rounded-full bg-slate-900' />
+          <div className='h-1 w-1 rounded-full bg-slate-900' />
         </div>
-
-        {/* Developer Credit */}
-        <div className='pt-2 border-t border-slate-100'>
-          <p className='text-[7px] font-bold text-slate-400'>SyntaxPulse</p>
-          <p className='text-[7px] text-slate-400 opacity-70 italic'>design by talhanaseeb27@gmail.com</p>
-        </div>
-
-        <div className='mt-2 flex justify-center grayscale opacity-30'>
-          {/* Mock Barcode */}
-          <div className='h-6 flex gap-[1px]'>
-            {[1, 2, 1, 3, 1, 2, 4, 1, 2, 1, 3, 1, 1, 2, 2, 1, 3].map((w, i) => (
-              <div key={i} className='bg-black' style={{ width: `${w}px` }} />
-            ))}
-          </div>
-        </div>
+        {businessDetails.website && <p className='text-[8px] text-slate-300 font-bold'>{businessDetails.website}</p>}
       </div>
-    </Card>
+    </div>
   );
 };

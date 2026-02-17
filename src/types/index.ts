@@ -1,4 +1,4 @@
-export type OrderStatus = "completed" | "pending" | "refunded" | "cancelled";
+export type OrderStatus = "completed" | "pending" | "refunded" | "cancelled" | "returned";
 export type PaymentMethod = "cash" | "card" | "bank" | "split";
 
 export interface Product {
@@ -6,6 +6,7 @@ export interface Product {
   name: string;
   sku: string;
   price: number;
+  wholesalePrice: number; // Added wholesale price
   costPrice: number;
   stock: number;
   category: string;
@@ -19,16 +20,23 @@ export interface OrderItem {
   quantity: number;
   price: number;
   total: number;
+  priceType: "retail" | "wholesale"; // Track which price was used
 }
 
 export interface Order {
   id: string;
   customerName?: string;
   items: OrderItem[];
+  subtotal: number;
+  discount: number;
+  tax: number;
   total: number;
+  storeCredit?: number;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   createdAt: string;
+  originalOrderId?: string; // For returns
+  returnReason?: string; // For returns
 }
 
 export interface ActivityLog {

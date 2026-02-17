@@ -13,8 +13,12 @@
     "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\""
   },
   "dependencies": {
+    "@types/react-date-range": "^1.4.10",
+    "date-fns": "^4.1.0",
     "react": "^19.2.0",
+    "react-date-range": "^2.0.1",
     "react-dom": "^19.2.0",
+    "recharts": "^3.7.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

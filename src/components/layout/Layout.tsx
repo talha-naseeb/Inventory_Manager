@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Moon, Sun, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Moon, Sun, ChevronLeft, ChevronRight, LogOut, History } from "lucide-react";
 import { motion } from "framer-motion";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
@@ -19,6 +19,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage,
   const menuItems = [
     { id: "dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
     { id: "pos", icon: <ShoppingCart size={20} />, label: "POS" },
+    { id: "sales-history", icon: <History size={20} />, label: "Sales History" },
     { id: "inventory", icon: <Package size={20} />, label: "Inventory" },
     { id: "customers", icon: <Users size={20} />, label: "Customers" },
     { id: "settings", icon: <Settings size={20} />, label: "Settings" },
