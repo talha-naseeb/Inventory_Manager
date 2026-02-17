@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, ShoppingCart, Trash2, CreditCard, Banknote, User, Zap, ZapOff, ArrowRightLeft, X } from "lucide-react";
 import { motion, Reorder } from "framer-motion";
 import { ProductCard } from "../components/pos/ProductCard";
@@ -9,7 +9,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card"
 import { CheckoutModal } from "../components/pos/CheckoutModal";
 import { usePOSStore } from "../store/usePOSStore";
 import { useThemeStore } from "../store/useThemeStore";
-import { MOCK_PRODUCTS } from "../services/mockData";
 import { cn } from "../lib/utils";
 
 export const POS: React.FC = () => {
@@ -19,23 +18,37 @@ export const POS: React.FC = () => {
   const [wholesaleMode, setWholesaleMode] = useState(false);
   const [initialPaymentMethod, setInitialPaymentMethod] = useState<"cash" | "card" | null>(null);
 
-  const { cart, updateQuantity, reorderCart, clearCart, subtotal, discount, total, discountType, discountValue, setDiscount, customerName, setCustomerName, storeCredit, setStoreCredit } =
-    usePOSStore();
+  const {
+    products,
+    fetchProducts,
+    cart,
+    updateQuantity,
+    reorderCart,
+    clearCart,
+    subtotal,
+    discount,
+    total,
+    discountType,
+    discountValue,
+    setDiscount,
+    customerName,
+    setCustomerName,
+    storeCredit,
+    setStoreCredit,
+  } = usePOSStore();
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
+
+  useEffect(() => {
+    fetchProducts(search, selectedCategory);
+  }, [search, selectedCategory, fetchProducts]);
+
+  const categories = ["All", ...new Set(products.map((p) => p.category))];
 
   const handleOpenCheckout = (method: "cash" | "card" | null = null) => {
     setInitialPaymentMethod(method);
     setIsCheckoutOpen(true);
   };
-
-  const categories = ["All", ...new Set(MOCK_PRODUCTS.map((p) => p.category))];
-
-  const filteredProducts = MOCK_PRODUCTS.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
 
   return (
     <div className='flex flex-col lg:flex-row h-full gap-4 lg:gap-6 max-w-[1600px] mx-auto overflow-hidden text-slate-900 dark:text-white'>
@@ -77,7 +90,7 @@ export const POS: React.FC = () => {
         </div>
 
         <div className='flex-1 overflow-y-auto pr-2 flex flex-wrap align-content-start content-start gap-4 pb-8 scrollbar-hide'>
-          {filteredProducts.map((product) => (
+          {products.map((product) => (
             <ProductCard key={product.id} product={product} wholesaleMode={wholesaleMode} />
           ))}
         </div>

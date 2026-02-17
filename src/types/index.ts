@@ -39,6 +39,15 @@ export interface Order {
   returnReason?: string; // For returns
 }
 
+export type StaffRole = "owner" | "admin" | "manager" | "cashier";
+
+export interface Staff {
+  id: string;
+  name: string;
+  role: StaffRole;
+  status: "active" | "inactive";
+}
+
 export interface ActivityLog {
   id: string;
   user: string;

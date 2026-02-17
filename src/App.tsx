@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { Layout } from "./components/layout/Layout.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
@@ -6,30 +6,13 @@ import { POS } from "./pages/POS.tsx";
 import { Settings } from "./pages/Settings.tsx";
 import { Login } from "./pages/auth/Login.tsx";
 import { SalesHistory } from "./pages/SalesHistory.tsx";
+import { Inventory } from "./pages/Inventory.tsx";
+
+import { useAuthStore } from "./store/useAuthStore";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { isAuthenticated } = useAuthStore();
   const [currentPage, setCurrentPage] = useState("dashboard");
-
-  // Load persistence from localStorage for auth (mock)
-  useEffect(() => {
-    const savedAuth = localStorage.getItem("isAuthenticated");
-    if (savedAuth === "true") {
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem("isAuthenticated", "true");
-  };
-
-  const handleLogout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      setIsAuthenticated(false);
-      localStorage.removeItem("isAuthenticated");
-    }
-  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -41,6 +24,8 @@ function App() {
         return <Settings />;
       case "sales-history":
         return <SalesHistory onPageChange={setCurrentPage} />;
+      case "inventory":
+        return <Inventory />;
       default:
         return <Dashboard />;
     }
@@ -49,9 +34,9 @@ function App() {
   return (
     <ThemeProvider>
       {!isAuthenticated ? (
-        <Login onLogin={handleLogin} />
+        <Login />
       ) : (
-        <Layout onLogout={handleLogout} currentPage={currentPage} onPageChange={setCurrentPage}>
+        <Layout currentPage={currentPage} onPageChange={setCurrentPage}>
           {renderPage()}
         </Layout>
       )}

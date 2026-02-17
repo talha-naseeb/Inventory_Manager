@@ -6,7 +6,9 @@ interface CartItem extends OrderItem {
 }
 
 interface POSState {
+  products: Product[];
   cart: CartItem[];
+  fetchProducts: (query?: string, category?: string) => Promise<void>;
   addItem: (product: Product, isWholesale?: boolean) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
@@ -25,7 +27,10 @@ interface POSState {
   setDiscount: (value: number, type: "fixed" | "percent") => void;
   setCustomerName: (name: string) => void;
   setStoreCredit: (amount: number) => void;
+  completeOrder: (paymentMethod: string) => Promise<string>;
 }
+
+import { dbService } from "../services/database";
 
 const TAX_RATE = 0.08; // 8%
 
@@ -48,6 +53,7 @@ export const usePOSStore = create<POSState>((set, get) => {
   };
 
   return {
+    products: [],
     cart: [],
     subtotal: 0,
     tax: 0,
@@ -59,11 +65,96 @@ export const usePOSStore = create<POSState>((set, get) => {
     customerName: "Cash Customer",
     storeCredit: 0,
 
+    fetchProducts: async (searchQuery = "", category = "All") => {
+      let sql = `
+        SELECT p.*, c.name as category 
+        FROM products p 
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE 1=1
+      `;
+      const params = [];
+
+      if (searchQuery) {
+        sql += " AND (p.name LIKE ? OR p.sku LIKE ?)";
+        params.push(`%${searchQuery}%`, `%${searchQuery}%`);
+      }
+
+      if (category !== "All") {
+        sql += " AND c.name = ?";
+        params.push(category);
+      }
+
+      const results = await dbService.query(sql, params);
+
+      // Map DB fields to Product interface if needed (mostly naming consistency)
+      const mappedProducts = results.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        sku: p.sku,
+        category: p.category,
+        price: p.price,
+        wholesalePrice: p.wholesale_price,
+        costPrice: p.cost_price,
+        image: p.image,
+        stock: p.stock,
+      }));
+
+      set({ products: mappedProducts });
+    },
+
     setCustomerName: (name: string) => set({ customerName: name }),
 
     setStoreCredit: (amount: number) => {
       const { cart, isTaxEnabled, discountValue, discountType } = get();
       set({ storeCredit: amount, ...calculateTotals(cart, isTaxEnabled, discountValue, discountType, amount) });
+    },
+
+    completeOrder: async (paymentMethod: string) => {
+      const { cart, subtotal, discount, tax, total, customerName, storeCredit } = get();
+      const orderId = crypto.randomUUID();
+
+      // 1. Create the Order
+      await dbService.execute(
+        `INSERT INTO orders (id, customer_name, subtotal, discount, tax, total, payment_method, store_credit_used, status) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, customerName, subtotal, discount, tax, total, paymentMethod, storeCredit, "completed"],
+      );
+
+      // 2. Insert Order Items & Update Stock
+      for (const item of cart) {
+        const itemId = crypto.randomUUID();
+        await dbService.execute(
+          `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, total, price_type) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [itemId, orderId, item.productId, item.name, item.price, item.quantity, item.total, item.priceType],
+        );
+
+        // Fetch current stock
+        const product = await dbService.getOne<{ stock: number }>("SELECT stock FROM products WHERE id = ?", [item.productId]);
+        if (product) {
+          const newStock = product.stock - item.quantity;
+
+          // Update Stock
+          await dbService.execute("UPDATE products SET stock = ? WHERE id = ?", [newStock, item.productId]);
+
+          // Log Inventory
+          await dbService.execute(
+            `INSERT INTO inventory_logs (id, product_id, action_type, quantity, previous_stock, current_stock, reason) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [crypto.randomUUID(), item.productId, "sale", -item.quantity, product.stock, newStock, `Sale #${orderId.slice(0, 8)}`],
+          );
+        }
+
+        // 3. Add to Sync Queue
+        await dbService.execute(
+          `INSERT INTO sync_queue (id, action_type, entity_id, payload_json) 
+           VALUES (?, ?, ?, ?)`,
+          [crypto.randomUUID(), "CREATE_ORDER", orderId, JSON.stringify({ orderId, items: cart, total })],
+        );
+      }
+
+      return orderId;
     },
 
     setTaxEnabled: (enabled: boolean) => {

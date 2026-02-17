@@ -5,6 +5,7 @@ import { Plus, Minus } from "lucide-react";
 import { usePOSStore } from "../../store/usePOSStore";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
+import { ProductImage } from "../ui/ProductImage";
 
 interface ProductCardProps {
   product: Product;
@@ -15,7 +16,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode
   const { cart, addItem, updateQuantity } = usePOSStore();
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
-  const [imageError, setImageError] = React.useState(false);
 
   const priceType: "retail" | "wholesale" = wholesaleMode ? "wholesale" : "retail";
   const itemId = `${product.id}-${priceType}`;
@@ -44,13 +44,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode
       {/* Top Section: Image + Info */}
       <div className='flex gap-3'>
         {/* Product Image */}
-        <div className='w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center border border-slate-50 dark:border-dark-border'>
-          {product.image && !imageError ? (
-            <img src={product.image} alt={product.name} className='w-full h-full object-cover' onError={() => setImageError(true)} />
-          ) : (
-            <div className='text-2xl font-black text-slate-200 dark:text-slate-700 font-display select-none uppercase'>{product.name.charAt(0)}</div>
-          )}
-        </div>
+        <ProductImage src={product.image} name={product.name} className='w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl border border-slate-50 dark:border-dark-border shadow-sm' />
 
         {/* Product Info */}
         <div className='flex-1 min-w-0 flex flex-col justify-center'>

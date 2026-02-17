@@ -15,7 +15,6 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess, initialPaymentMethod }) => {
-  const { total, subtotal, discount, customerName, cart, clearCart } = usePOSStore();
   const { businessDetails } = useThemeStore(); // Added
   const currency = businessDetails.currency; // Added
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi" | null>(null);
@@ -31,14 +30,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleCheckout = () => {
+  const { total, subtotal, discount, customerName, cart, clearCart, completeOrder } = usePOSStore();
+
+  const handleCheckout = async () => {
     if (!paymentMethod) return;
     setIsProcessing(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await completeOrder(paymentMethod);
       setIsProcessing(false);
       setIsSuccess(true);
-    }, 1500);
+    } catch (error) {
+      console.error("Checkout failed:", error);
+      setIsProcessing(false);
+      // Optional: Add toast notification here
+    }
   };
 
   const handleComplete = () => {

@@ -5,28 +5,32 @@ import { useThemeStore } from "../../store/useThemeStore";
 import { cn, getSidebarContrast } from "../../lib/utils";
 import { Button } from "../ui/Button";
 
+import { useAuthStore } from "../../store/useAuthStore";
+
 interface LayoutProps {
   children: React.ReactNode;
-  onLogout: () => void;
   currentPage: string;
   onPageChange: (page: string) => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onPageChange }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange }) => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const { isDarkMode, toggleDarkMode, sidebarColor } = useThemeStore();
+  const { currentStaff, logout } = useAuthStore();
 
   const contrast = getSidebarContrast(sidebarColor, isDarkMode);
   const isLightSiderbar = contrast === "dark";
 
-  const menuItems = [
-    { id: "dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-    { id: "pos", icon: <ShoppingCart size={20} />, label: "POS" },
-    { id: "sales-history", icon: <History size={20} />, label: "Sales History" },
-    { id: "inventory", icon: <Package size={20} />, label: "Inventory" },
-    { id: "customers", icon: <Users size={20} />, label: "Customers" },
-    { id: "settings", icon: <Settings size={20} />, label: "Settings" },
+  const allMenuItems = [
+    { id: "dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard", roles: ["owner", "admin", "manager"] },
+    { id: "pos", icon: <ShoppingCart size={20} />, label: "POS", roles: ["owner", "admin", "manager", "cashier"] },
+    { id: "sales-history", icon: <History size={20} />, label: "Sales History", roles: ["owner", "admin", "manager", "cashier"] },
+    { id: "inventory", icon: <Package size={20} />, label: "Inventory", roles: ["owner", "admin", "manager"] },
+    { id: "customers", icon: <Users size={20} />, label: "Customers", roles: ["owner", "admin", "manager", "cashier"] },
+    { id: "settings", icon: <Settings size={20} />, label: "Settings", roles: ["owner", "admin"] },
   ];
+
+  const menuItems = allMenuItems.filter((item) => item.roles.includes(currentStaff?.role || "cashier"));
 
   return (
     <div className='flex h-screen w-screen bg-gray-100 dark:bg-dark-bg text-slate-900 dark:text-slate-100 transition-colors duration-300 overflow-hidden font-sans'>
@@ -97,16 +101,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage,
         <div className={cn("p-4 border-t", !sidebarColor ? "border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20" : "border-white/10 bg-black/5")}>
           <div className='flex items-center justify-between'>
             <div className='flex items-center'>
-              <div className='w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0'>AD</div>
+              <div className='w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0'>
+                {currentStaff?.name.slice(0, 2).toUpperCase() || "AD"}
+              </div>
               {isSidebarExpanded && (
                 <div className='ml-3 overflow-hidden'>
-                  <p className='text-sm font-semibold truncate'>Admin User</p>
-                  <p className={cn("text-xs truncate", isLightSiderbar ? "text-slate-500" : "text-white/60")}>admin@shop.com</p>
+                  <p className='text-sm font-semibold truncate'>{currentStaff?.name || "Staff Member"}</p>
+                  <p className={cn("text-xs truncate uppercase font-bold tracking-tighter", isLightSiderbar ? "text-slate-500" : "text-white/60")}>{currentStaff?.role || "cashier"}</p>
                 </div>
               )}
             </div>
             {isSidebarExpanded && (
-              <Button variant='ghost' size='icon' onClick={onLogout} className={cn("transition-colors", isLightSiderbar ? "text-slate-400 hover:text-danger" : "text-white/40 hover:text-white")}>
+              <Button
+                variant='ghost'
+                size='icon'
+                onClick={() => {
+                  if (confirm("Are you sure you want to logout?")) logout();
+                }}
+                className={cn("transition-colors", isLightSiderbar ? "text-slate-400 hover:text-danger" : "text-white/40 hover:text-white")}
+              >
                 <LogOut size={18} />
               </Button>
             )}
