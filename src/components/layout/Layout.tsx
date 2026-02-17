@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Moon, Sun, ChevronLeft, ChevronRight, LogOut, History } from "lucide-react";
 import { motion } from "framer-motion";
 import { useThemeStore } from "../../store/useThemeStore";
-import { cn } from "../../lib/utils";
+import { cn, getSidebarContrast } from "../../lib/utils";
 import { Button } from "../ui/Button";
 
 interface LayoutProps {
@@ -15,6 +15,9 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage, onPageChange }) => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const { isDarkMode, toggleDarkMode, sidebarColor } = useThemeStore();
+
+  const contrast = getSidebarContrast(sidebarColor, isDarkMode);
+  const isLightSiderbar = contrast === "dark";
 
   const menuItems = [
     { id: "dashboard", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
@@ -32,10 +35,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage,
         initial={false}
         animate={{ width: isSidebarExpanded ? 260 : 80 }}
         style={{ backgroundColor: sidebarColor || undefined }}
-        className={cn("h-full bg-white dark:bg-dark-surface border-r border-slate-200 dark:border-dark-border flex flex-col relative z-20", !sidebarColor && "bg-white dark:bg-dark-surface")}
+        className={cn(
+          "h-full border-r transition-colors flex flex-col relative z-20",
+          !sidebarColor ? "bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border" : "border-white/10",
+          isLightSiderbar ? "text-slate-900" : "text-white",
+        )}
       >
         {/* Logo Section */}
-        <div className='h-20 flex items-center px-6 border-b border-slate-100 dark:border-dark-border overflow-hidden'>
+        <div className={cn("h-20 flex items-center px-6 border-b overflow-hidden", !sidebarColor ? "border-slate-100 dark:border-dark-border" : "border-white/10")}>
           <div className='w-10 h-10 bg-primary rounded-lg flex-shrink-0 flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20'>I</div>
           {isSidebarExpanded && (
             <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className='ml-3 font-bold text-xl tracking-tight font-display'>
@@ -52,7 +59,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage,
               onClick={() => onPageChange(item.id)}
               className={cn(
                 "flex items-center p-3 rounded-xl cursor-pointer transition-all duration-200 group",
-                currentPage === item.id ? "bg-primary/10 text-primary dark:bg-primary/20" : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400",
+                currentPage === item.id
+                  ? isLightSiderbar
+                    ? "bg-primary/10 text-primary"
+                    : "bg-white/20 text-white shadow-lg shadow-black/5"
+                  : isLightSiderbar
+                    ? "hover:bg-slate-100 text-slate-500"
+                    : "hover:bg-white/10 text-white/70",
               )}
             >
               <div className='flex-shrink-0'>{item.icon}</div>
@@ -68,25 +81,32 @@ export const Layout: React.FC<LayoutProps> = ({ children, onLogout, currentPage,
         {/* Sidebar Toggle */}
         <button
           onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-          className='absolute -right-3 top-24 w-6 h-6 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-full flex items-center justify-center shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors z-30'
+          className={cn(
+            "absolute -right-3 top-24 w-6 h-6 border rounded-full flex items-center justify-center shadow-sm cursor-pointer transition-colors z-30",
+            !sidebarColor
+              ? "bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+              : isLightSiderbar
+                ? "bg-white border-slate-200 text-slate-900 hover:bg-slate-50"
+                : "bg-slate-800 border-white/10 text-white hover:bg-slate-700",
+          )}
         >
           {isSidebarExpanded ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
         </button>
 
         {/* Footer Info & Logout */}
-        <div className='p-4 border-t border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20'>
+        <div className={cn("p-4 border-t", !sidebarColor ? "border-slate-100 dark:border-dark-border bg-slate-50/50 dark:bg-slate-800/20" : "border-white/10 bg-black/5")}>
           <div className='flex items-center justify-between'>
             <div className='flex items-center'>
               <div className='w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0'>AD</div>
               {isSidebarExpanded && (
                 <div className='ml-3 overflow-hidden'>
                   <p className='text-sm font-semibold truncate'>Admin User</p>
-                  <p className='text-xs text-slate-500 truncate'>admin@shop.com</p>
+                  <p className={cn("text-xs truncate", isLightSiderbar ? "text-slate-500" : "text-white/60")}>admin@shop.com</p>
                 </div>
               )}
             </div>
             {isSidebarExpanded && (
-              <Button variant='ghost' size='icon' onClick={onLogout} className='text-slate-400 hover:text-danger'>
+              <Button variant='ghost' size='icon' onClick={onLogout} className={cn("transition-colors", isLightSiderbar ? "text-slate-400 hover:text-danger" : "text-white/40 hover:text-white")}>
                 <LogOut size={18} />
               </Button>
             )}

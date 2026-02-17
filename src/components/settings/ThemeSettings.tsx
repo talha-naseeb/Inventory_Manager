@@ -15,6 +15,10 @@ export const ThemeSettings: React.FC = () => {
     { name: "Rose", color: "#e11d48" },
     { name: "Amber", color: "#d97706" },
     { name: "Slate", color: "#475569" },
+    { name: "Burgundy", color: "#5e1c1c" },
+    { name: "Plum", color: "#842291" },
+    { name: "Indigo", color: "#3a2390" },
+    { name: "Cerulean", color: "#267aba" },
   ];
 
   return (
@@ -54,7 +58,6 @@ export const ThemeSettings: React.FC = () => {
                 <h4 className='font-bold text-sm'>Primary Color</h4>
                 <p className='text-xs text-slate-500'>Main brand color used for buttons and active states</p>
               </div>
-              <input type='color' value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className='w-10 h-10 rounded-lg cursor-pointer border-none bg-transparent' />
             </div>
             <div className='flex flex-wrap gap-2'>
               {presets.map((p) => (
@@ -76,7 +79,6 @@ export const ThemeSettings: React.FC = () => {
                 <h4 className='font-bold text-sm'>Accent Color</h4>
                 <p className='text-xs text-slate-500'>Secondary color used for badges and highlights</p>
               </div>
-              <input type='color' value={accentColor} onChange={(e) => setAccentColor(e.target.value)} className='w-10 h-10 rounded-lg cursor-pointer border-none bg-transparent' />
             </div>
             <div className='flex flex-wrap gap-2'>
               {presets.map((p) => (
@@ -93,20 +95,27 @@ export const ThemeSettings: React.FC = () => {
 
           {/* Sidebar Color */}
           <div className='space-y-4'>
-            <div>
-              <h4 className='font-bold text-sm'>Sidebar Background</h4>
-              <p className='text-xs text-slate-500'>Override the default sidebar color</p>
+            <div className='flex justify-between items-end'>
+              <div>
+                <h4 className='font-bold text-sm'>Sidebar Background</h4>
+                <p className='text-xs text-slate-500'>Override the default sidebar color</p>
+              </div>
+              <div className='flex items-center gap-2'>
+                <Button variant='ghost' size='sm' onClick={() => setSidebarColor(null)} className='text-xs'>
+                  Default
+                </Button>
+              </div>
             </div>
-            <div className='flex items-center gap-4'>
-              <input
-                type='color'
-                value={sidebarColor || (isDarkMode ? "#0f172a" : "#ffffff")}
-                onChange={(e) => setSidebarColor(e.target.value)}
-                className='w-10 h-10 rounded-lg cursor-pointer border-none bg-transparent'
-              />
-              <Button variant='ghost' size='sm' onClick={() => setSidebarColor(null)}>
-                Use Default
-              </Button>
+            <div className='flex flex-wrap gap-2'>
+              {presets.map((p) => (
+                <button
+                  key={`sidebar-${p.color}`}
+                  onClick={() => setSidebarColor(p.color)}
+                  className={cn("w-8 h-8 rounded-full transition-transform hover:scale-110", sidebarColor === p.color && "ring-2 ring-offset-2 ring-primary")}
+                  style={{ backgroundColor: p.color }}
+                  title={p.name}
+                />
+              ))}
             </div>
           </div>
         </CardContent>
