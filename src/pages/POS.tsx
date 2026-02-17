@@ -23,6 +23,7 @@ export const POS: React.FC = () => {
     fetchProducts,
     cart,
     updateQuantity,
+    updateItemPrice,
     reorderCart,
     clearCart,
     subtotal,
@@ -43,7 +44,7 @@ export const POS: React.FC = () => {
     fetchProducts(search, selectedCategory);
   }, [search, selectedCategory, fetchProducts]);
 
-  const categories = ["All", ...new Set(products.map((p) => p.category))];
+  const brands = ["All", ...new Set(products.map((p) => p.brand).filter(Boolean))];
 
   const handleOpenCheckout = (method: "cash" | "card" | null = null) => {
     setInitialPaymentMethod(method);
@@ -73,18 +74,16 @@ export const POS: React.FC = () => {
         </div>
 
         <div className='flex gap-2 overflow-x-auto pb-3 scrollbar-hide'>
-          {categories.map((cat) => (
+          {brands.map((brand) => (
             <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              key={brand}
+              onClick={() => setSelectedCategory(brand || "All")}
               className={cn(
-                "px-5 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap border",
-                selectedCategory === cat
-                  ? "bg-primary text-white border-primary shadow-md shadow-primary/20"
-                  : "bg-white dark:bg-dark-surface border-slate-100 dark:border-dark-border hover:border-primary/30",
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                selectedCategory === brand ? "bg-primary text-white shadow-md" : "bg-slate-100 dark:bg-dark-surface text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700",
               )}
             >
-              {cat}
+              {brand}
             </button>
           ))}
         </div>
@@ -141,7 +140,7 @@ export const POS: React.FC = () => {
               <Reorder.Group axis='y' values={cart} onReorder={reorderCart} className='space-y-1'>
                 {cart.map((item) => (
                   <Reorder.Item key={item.productId} value={item} className='cursor-grab active:cursor-grabbing'>
-                    <CartItem {...item} onUpdateQty={(qty) => updateQuantity(item.productId, qty)} />
+                    <CartItem {...item} onUpdateQty={(qty) => updateQuantity(item.id, qty)} onUpdatePrice={(newPrice) => updateItemPrice(item.id, newPrice)} />
                   </Reorder.Item>
                 ))}
               </Reorder.Group>

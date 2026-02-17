@@ -27,6 +27,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      webSecurity: false, // Allow file:// protocol for local images
     },
   });
 
@@ -51,6 +52,44 @@ app.on("activate", () => {
   }
 });
 
+// IPC Handler: Open File Dialog for Image Upload
+ipcMain.handle("dialog:openFile", async () => {
+  const { dialog } = require("electron");
+  const fs = require("fs");
+
+  const result = await dialog.showOpenDialog({
+    properties: ["openFile"],
+    filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "gif", "webp"] }],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const sourcePath = result.filePaths[0];
+  const fileName = path.basename(sourcePath);
+  const userDataPath = app.getPath("userData");
+  const assetsDir = path.join(userDataPath, "product-images");
+
+  // Create assets directory if it doesn't exist
+  if (!fs.existsSync(assetsDir)) {
+    fs.mkdirSync(assetsDir, { recursive: true });
+  }
+
+  // Generate unique filename to avoid conflicts
+  const timestamp = Date.now();
+  const ext = path.extname(fileName);
+  const baseName = path.basename(fileName, ext);
+  const destFileName = `${baseName}_${timestamp}${ext}`;
+  const destPath = path.join(assetsDir, destFileName);
+
+  // Copy file to assets directory
+  fs.copyFileSync(sourcePath, destPath);
+
+  // Return the local file path
+  return `file://${destPath}`;
+});
+
 // IPC Handlers for Database
 ipcMain.handle("db:query", (event, sql, params = []) => {
   try {
@@ -63,7 +102,8 @@ ipcMain.handle("db:query", (event, sql, params = []) => {
 
 ipcMain.handle("db:execute", (event, sql, params = []) => {
   try {
-    return db.prepare(sql).run(...params);
+    const result = db.prepare(sql).run(...params);
+    return { changes: result.changes, lastInsertRowid: result.lastInsertRowid };
   } catch (err) {
     console.error("DB Execute Error:", err);
     throw err;

@@ -7,23 +7,74 @@ import { AnalyticsCharts } from "../components/dashboard/AnalyticsCharts";
 import { DateRangeFilter } from "../components/dashboard/DateRangeFilter";
 import { Skeleton } from "../components/ui/Skeleton";
 import { useThemeStore } from "../store/useThemeStore";
-import { MOCK_ORDERS, MOCK_ACTIVITY } from "../services/mockData";
+import { dbService } from "../services/database";
+import type { Order } from "../types";
 
 export const Dashboard: React.FC = () => {
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
   const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    activeProducts: 0,
+    totalCustomers: 0,
+  });
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    return () => clearTimeout(timer);
+    loadDashboardData();
   }, []);
 
-  const stats = [
-    { label: "Total Revenue", value: isLoading ? "---" : `${currency} 154,230`, icon: <TrendingUp className='text-emerald-500' />, trend: "+12.5%", isPositive: true },
-    { label: "Total Orders", value: isLoading ? "---" : "1,240", icon: <ShoppingCart className='text-primary' />, trend: "+5.2%", isPositive: true },
-    { label: "Active Products", value: isLoading ? "---" : "450", icon: <Package className='text-amber-500' />, trend: "+2.1%", isPositive: true },
-    { label: "Total Customers", value: isLoading ? "---" : "890", icon: <Users className='text-indigo-500' />, trend: "+8.4%", isPositive: true },
+  const loadDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      const dashboardStats = await dbService.getDashboardStats();
+      const orders = await dbService.getRecentOrders(5);
+
+      setStats({
+        totalRevenue: dashboardStats.totalRevenue,
+        totalOrders: dashboardStats.totalOrders,
+        activeProducts: dashboardStats.activeProducts,
+        totalCustomers: 0, // TODO: Implement customer tracking
+      });
+      setRecentOrders(orders);
+    } catch (error) {
+      console.error("Failed to load dashboard data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const statsCards = [
+    {
+      label: "Total Revenue",
+      value: isLoading ? "---" : `${currency} ${stats.totalRevenue.toLocaleString()}`,
+      icon: <TrendingUp className='text-emerald-500' />,
+      trend: "+12.5%",
+      isPositive: true,
+    },
+    {
+      label: "Total Orders",
+      value: isLoading ? "---" : stats.totalOrders.toString(),
+      icon: <ShoppingCart className='text-primary' />,
+      trend: "+5.2%",
+      isPositive: true,
+    },
+    {
+      label: "Active Products",
+      value: isLoading ? "---" : stats.activeProducts.toString(),
+      icon: <Package className='text-amber-500' />,
+      trend: "+2.1%",
+      isPositive: true,
+    },
+    {
+      label: "Total Customers",
+      value: isLoading ? "---" : stats.totalCustomers.toString(),
+      icon: <Users className='text-indigo-500' />,
+      trend: "+8.4%",
+      isPositive: true,
+    },
   ];
 
   if (isLoading) {
@@ -59,7 +110,7 @@ export const Dashboard: React.FC = () => {
 
       {/* Stats Grid */}
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
-        {stats.map((stat, idx) => (
+        {statsCards.map((stat, idx) => (
           <motion.div
             key={idx}
             initial={{ opacity: 0, y: 20 }}
@@ -92,10 +143,10 @@ export const Dashboard: React.FC = () => {
       {/* Orders and Activity */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         <div className='lg:col-span-2'>
-          <RecentOrders orders={MOCK_ORDERS} />
+          <RecentOrders orders={recentOrders} />
         </div>
         <div>
-          <ActivityFeed activities={MOCK_ACTIVITY} />
+          <ActivityFeed activities={[]} />
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { cn, getSidebarContrast } from "../../lib/utils";
 import { Button } from "../ui/Button";
 
 import { useAuthStore } from "../../store/useAuthStore";
+import { SyncStatus } from "./SyncStatus";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -132,15 +133,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageCha
         {/* Top Header */}
         <header className='h-20 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border px-8 flex items-center justify-between flex-shrink-0'>
           <h2 className='text-xl font-bold font-display capitalize'>{currentPage}</h2>
-
           <div className='flex items-center space-x-4'>
+            <SyncStatus />
             <Button variant='ghost' size='icon' onClick={toggleDarkMode} className='rounded-full'>
               {isDarkMode ? <Sun size={20} className='text-amber-500' /> : <Moon size={20} className='text-slate-600' />}
             </Button>
             <div className='w-px h-6 bg-slate-200 dark:bg-dark-border' />
-            <div className='flex items-center space-x-2 bg-accent/10 text-accent px-3 py-1.5 rounded-full text-sm font-medium'>
-              <span className='w-2 h-2 bg-accent rounded-full animate-pulse' />
-              <span>Shop Open</span>
+            <div className='flex items-center space-x-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest'>
+              <span className='w-2 h-2 bg-emerald-500 rounded-full animate-pulse' />
+              <span>Session Active</span>
             </div>
           </div>
         </header>

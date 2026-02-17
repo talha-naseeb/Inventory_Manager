@@ -1,41 +1,83 @@
 import React, { useState, useEffect } from "react";
-import { Package, Plus, Search, Filter, Edit2, Trash2, ArrowDownRight, Barcode, Tag, Box } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Package } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { Input } from "../components/ui/Input";
+import { ProductModal } from "../components/inventory/ProductModal";
+import { BrandSidebar } from "../components/inventory/BrandSidebar";
+import { BrandModal } from "../components/inventory/BrandModal";
 import { dbService } from "../services/database";
 import type { Product } from "../types";
-import { useThemeStore } from "../store/useThemeStore";
-import { cn } from "../lib/utils";
-import { ProductImage } from "../components/ui/ProductImage";
+
+interface Brand {
+  id: string;
+  name: string;
+  productCount?: number;
+}
 
 export const Inventory: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const { businessDetails } = useThemeStore();
-  const currency = businessDetails.currency;
+
+  const fetchBrands = async () => {
+    try {
+      const brandsData = await dbService.query<Brand>(`
+        SELECT 
+          b.id, 
+          b.name,
+          COUNT(p.id) as productCount
+        FROM brands b
+        LEFT JOIN products p ON b.id = p.brand_id
+        GROUP BY b.id, b.name
+        ORDER BY b.name
+      `);
+      setBrands(brandsData);
+    } catch (error) {
+      console.error("Failed to fetch brands:", error);
+    }
+  };
 
   const fetchInventory = async () => {
-    setLoading(true);
     try {
-      const sql = `
-        SELECT p.*, c.name as category 
-        FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.name LIKE ? OR p.sku LIKE ?
-        ORDER BY p.created_at DESC
+      setLoading(true);
+      let query = `
+        SELECT p.*, b.name as brand
+        FROM products p
+        LEFT JOIN brands b ON p.brand_id = b.id
+        WHERE 1=1
       `;
-      const res = await dbService.query(sql, [`%${search}%`, `%${search}%`]);
+      const params: any[] = [];
+
+      if (selectedBrandId) {
+        query += " AND p.brand_id = ?";
+        params.push(selectedBrandId);
+      }
+
+      if (search) {
+        query += " AND (p.name LIKE ? OR p.sku LIKE ?)";
+        params.push(`%${search}%`, `%${search}%`);
+      }
+
+      query += " ORDER BY p.created_at DESC";
+
+      const data = await dbService.query(query, params);
       setProducts(
-        res.map((p) => ({
+        data.map((p: any) => ({
           id: p.id,
           name: p.name,
           sku: p.sku,
+          brand: p.brand,
+          brandId: p.brand_id,
           price: p.price,
           wholesalePrice: p.wholesale_price,
           costPrice: p.cost_price,
           stock: p.stock,
-          category: p.category,
           image: p.image,
           description: p.description,
         })),
@@ -48,156 +90,219 @@ export const Inventory: React.FC = () => {
   };
 
   useEffect(() => {
+    fetchBrands();
     fetchInventory();
-  }, [search]);
+  }, [selectedBrandId, search]);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this product?")) return;
+
+    try {
+      await dbService.execute("DELETE FROM products WHERE id = ?", [id]);
+      await dbService.enqueueSync("DELETE_PRODUCT", id, { id, deletedAt: new Date().toISOString() });
+      fetchInventory();
+      fetchBrands(); // Refresh counts
+    } catch (error) {
+      console.error("Failed to delete product:", error);
+      alert("Failed to delete product. Please try again.");
+    }
+  };
+
+  const handleEdit = (product: Product) => {
+    setSelectedProduct(product);
+    setIsProductModalOpen(true);
+  };
+
+  const handleAddProduct = () => {
+    setSelectedProduct(null);
+    setIsProductModalOpen(true);
+  };
+
+  const handleProductSave = () => {
+    fetchInventory();
+    fetchBrands(); // Refresh counts
+  };
+
+  const handleBrandSave = () => {
+    fetchBrands();
+  };
+
+  const handleDeleteAllProducts = async () => {
+    if (products.length === 0) {
+      alert("No products to delete.");
+      return;
+    }
+
+    const confirmMessage = `⚠️ WARNING: This will permanently delete ALL ${products.length} product(s)!\n\nThis action cannot be undone.\n\nAre you absolutely sure?`;
+
+    if (!confirm(confirmMessage)) return;
+
+    // Double confirmation for safety
+    if (!confirm("Last chance! Delete all products?")) return;
+
+    try {
+      // First, delete all order_items to avoid foreign key constraint
+      await dbService.execute("DELETE FROM order_items");
+
+      // Then delete all products
+      await dbService.execute("DELETE FROM products");
+
+      await dbService.enqueueSync("DELETE_ALL_PRODUCTS", "bulk", {
+        deletedAt: new Date().toISOString(),
+        count: products.length,
+      });
+
+      fetchInventory();
+      fetchBrands(); // Refresh counts
+      alert(`Successfully deleted ${products.length} product(s) and cleared order history.`);
+    } catch (error) {
+      console.error("Failed to delete all products:", error);
+      alert("Failed to delete products. Please try again.");
+    }
+  };
+
+  const totalProducts = products.length;
+  const filteredProducts = products;
 
   return (
-    <div className='p-6 space-y-6 max-w-[1600px] mx-auto'>
-      {/* Header Section */}
-      <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
-        <div>
-          <h1 className='text-3xl font-black font-display text-slate-900 dark:text-white'>Inventory Management</h1>
-          <p className='text-slate-500 text-sm'>Manage your stock, variants, and pricing.</p>
-        </div>
-        <div className='flex items-center gap-3'>
-          <Button variant='outline' className='gap-2 hidden sm:flex'>
-            <Barcode size={18} />
-            <span>Print Labels</span>
-          </Button>
-          <Button className='gap-2 h-11 bg-primary text-white'>
-            <Plus size={18} />
-            <span>Add Product</span>
-          </Button>
+    <div className='h-screen flex flex-col bg-slate-50 dark:bg-dark-bg'>
+      {/* Header */}
+      <div className='bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border p-6'>
+        <div className='flex items-center justify-between'>
+          <div>
+            <h1 className='text-3xl font-bold text-slate-900 dark:text-white'>Inventory Management</h1>
+            <p className='text-slate-600 dark:text-slate-400 mt-1'>
+              {selectedBrandId ? brands.find((b) => b.id === selectedBrandId)?.name : "All Brands"} • {filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"}
+            </p>
+          </div>
+          <div className='flex gap-2'>
+            {products.length > 0 && (
+              <Button variant='outline' onClick={handleDeleteAllProducts} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20'>
+                <Trash2 size={18} className='mr-2' />
+                Delete All Products
+              </Button>
+            )}
+            <Button onClick={handleAddProduct}>
+              <Plus size={18} className='mr-2' />
+              Add Product
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Stats Quick View */}
-      <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'>
-        {[
-          { label: "Total Products", value: products.length, icon: <Package />, color: "text-blue-600" },
-          { label: "Low Stock Items", value: products.filter((p) => p.stock < 10).length, icon: <ArrowDownRight />, color: "text-amber-600" },
-          { label: "Out of Stock", value: products.filter((p) => p.stock <= 0).length, icon: <Box />, color: "text-rose-600" },
-          { label: "Inventory Value", value: `${currency} ${products.reduce((acc, p) => acc + p.price * p.stock, 0).toLocaleString()}`, icon: <Tag />, color: "text-emerald-600" },
-        ].map((stat, i) => (
-          <Card key={i} className='p-4 flex items-center gap-4'>
-            <div className={cn("p-3 rounded-xl bg-slate-50 dark:bg-slate-800", stat.color)}>{stat.icon}</div>
-            <div>
-              <p className='text-xs font-bold uppercase tracking-wider text-slate-400'>{stat.label}</p>
-              <p className='text-xl font-black font-display text-slate-900 dark:text-white leading-tight'>{stat.value}</p>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {/* Utility Bar */}
-      <Card className='p-2 flex flex-col md:flex-row items-center gap-2'>
-        <div className='relative flex-1 w-full'>
-          <Search className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={18} />
-          <input
-            type='text'
-            placeholder='Search by SKU or product name...'
-            className='w-full pl-10 pr-4 py-2 bg-transparent outline-none text-sm text-slate-900 dark:text-white placeholder:text-slate-400'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+      {/* Main Content */}
+      <div className='flex-1 flex overflow-hidden'>
+        {/* Left Sidebar - Brands */}
+        <div className='w-64 flex-shrink-0'>
+          <BrandSidebar
+            brands={brands}
+            selectedBrandId={selectedBrandId}
+            onSelectBrand={setSelectedBrandId}
+            onAddBrand={() => setIsBrandModalOpen(true)}
+            onBrandDeleted={() => {
+              fetchBrands();
+              fetchInventory();
+            }}
+            totalProducts={totalProducts}
           />
         </div>
-        <div className='flex items-center gap-2 w-full md:w-auto border-t md:border-t-0 md:border-l border-slate-100 dark:border-dark-border pt-2 md:pt-0 md:pl-2'>
-          <Button variant='ghost' size='sm' className='gap-2 text-slate-500'>
-            <Filter size={16} />
-            <span>Filter</span>
-          </Button>
-          <div className='h-4 w-[1px] bg-slate-100 dark:bg-dark-border hidden md:block' />
-          <p className='text-[10px] font-bold uppercase text-slate-400 px-2'>{products.length} Products Found</p>
-        </div>
-      </Card>
 
-      {/* Product Table */}
-      <Card className='overflow-hidden border-none shadow-xl bg-white dark:bg-dark-surface'>
-        <div className='overflow-x-auto'>
-          <table className='w-full text-left border-collapse'>
-            <thead>
-              <tr className='bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-dark-border transition-colors'>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400'>Product Details</th>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center'>Category</th>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center'>Stock</th>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right'>Retail Price</th>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right'>Wholesale</th>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center'>Status</th>
-                <th className='px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right'>Actions</th>
-              </tr>
-            </thead>
-            <tbody className='divide-y divide-slate-50 dark:divide-dark-border'>
-              {loading ? (
-                Array(5)
-                  .fill(0)
-                  .map((_, i) => (
-                    <tr key={i} className='animate-pulse'>
-                      <td colSpan={7} className='px-6 py-8'>
-                        <div className='h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/2 mx-auto' />
-                      </td>
-                    </tr>
-                  ))
-              ) : products.length > 0 ? (
-                products.map((product) => (
-                  <tr key={product.id} className='group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all'>
-                    <td className='px-6 py-4'>
-                      <div className='flex items-center gap-3'>
-                        <ProductImage src={product.image} name={product.name} className='w-10 h-10 rounded-lg shadow-sm border border-slate-100 dark:border-dark-border' />
+        {/* Right Panel - Products */}
+        <div className='flex-1 flex flex-col overflow-hidden'>
+          {/* Search Bar */}
+          <div className='p-4 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border'>
+            <div className='relative'>
+              <Search className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={20} />
+              <Input type='text' placeholder='Search products by name or SKU...' value={search} onChange={(e) => setSearch(e.target.value)} className='pl-10' />
+            </div>
+          </div>
+
+          {/* Products Grid */}
+          <div className='flex-1 overflow-y-auto p-6'>
+            {loading ? (
+              <div className='text-center py-12'>
+                <div className='inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
+                <p className='text-slate-600 dark:text-slate-400 mt-4'>Loading products...</p>
+              </div>
+            ) : filteredProducts.length === 0 ? (
+              <div className='text-center py-12'>
+                <Package size={48} className='mx-auto text-slate-300 dark:text-slate-600 mb-4' />
+                <h3 className='text-lg font-semibold text-slate-900 dark:text-white mb-2'>No products found</h3>
+                <p className='text-slate-600 dark:text-slate-400 mb-4'>{search ? "Try adjusting your search" : "Get started by adding your first product"}</p>
+                {!search && (
+                  <Button onClick={handleAddProduct}>
+                    <Plus size={18} className='mr-2' />
+                    Add Product
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+                {filteredProducts.map((product) => (
+                  <Card key={product.id} className='overflow-hidden hover:shadow-lg transition-shadow'>
+                    {/* Product Image */}
+                    <div className='aspect-square bg-slate-100 dark:bg-slate-800 relative'>
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name}
+                          className='w-full h-full object-cover'
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className='w-full h-full flex items-center justify-center'>
+                          <Package size={48} className='text-slate-300 dark:text-slate-600' />
+                        </div>
+                      )}
+                      {product.brand && <div className='absolute top-2 left-2 bg-primary text-white text-xs px-2 py-1 rounded-full font-medium'>{product.brand}</div>}
+                      {product.stock <= 5 && <div className='absolute top-2 right-2 bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-medium'>Low Stock</div>}
+                    </div>
+
+                    {/* Product Details */}
+                    <div className='p-4'>
+                      <h3 className='font-semibold text-slate-900 dark:text-white mb-1 truncate'>{product.name}</h3>
+                      <p className='text-sm text-slate-600 dark:text-slate-400 mb-2'>SKU: {product.sku}</p>
+                      <div className='flex items-center justify-between mb-3'>
                         <div>
-                          <p className='text-sm font-bold text-slate-900 dark:text-white'>{product.name}</p>
-                          <p className='text-[10px] font-mono text-slate-400 uppercase tracking-tighter'>{product.sku}</p>
+                          <p className='text-lg font-bold text-primary'>PKR {product.price.toFixed(2)}</p>
+                          <p className='text-xs text-slate-500'>Stock: {product.stock}</p>
                         </div>
                       </div>
-                    </td>
-                    <td className='px-6 py-4 text-center'>
-                      <span className='px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider'>{product.category}</span>
-                    </td>
-                    <td className='px-6 py-4 text-center'>
-                      <span className={cn("font-mono font-bold text-sm", product.stock < 10 ? "text-amber-500" : "text-slate-600 dark:text-slate-300")}>{product.stock}</span>
-                    </td>
-                    <td className='px-6 py-4 text-right font-mono font-bold text-sm text-slate-900 dark:text-white'>
-                      {currency} {product.price.toFixed(2)}
-                    </td>
-                    <td className='px-6 py-4 text-right font-mono font-bold text-sm text-primary'>
-                      {currency} {product.wholesalePrice.toFixed(2)}
-                    </td>
-                    <td className='px-6 py-4 text-center'>
-                      <span
-                        className={cn(
-                          "px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
-                          product.stock > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400",
-                        )}
-                      >
-                        {product.stock > 0 ? "In Stock" : "Out of Stock"}
-                      </span>
-                    </td>
-                    <td className='px-6 py-4 text-right'>
-                      <div className='flex items-center justify-end gap-2'>
-                        <button className='p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-primary'>
-                          <Edit2 size={16} />
-                        </button>
-                        <button className='p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-rose-500'>
-                          <Trash2 size={16} />
-                        </button>
+
+                      {/* Actions */}
+                      <div className='flex gap-2'>
+                        <Button variant='outline' size='sm' onClick={() => handleEdit(product)} className='flex-1'>
+                          <Edit2 size={14} className='mr-1' />
+                          Edit
+                        </Button>
+                        <Button variant='outline' size='sm' onClick={() => handleDelete(product.id)} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20'>
+                          <Trash2 size={14} />
+                        </Button>
                       </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className='px-6 py-20 text-center text-slate-500'>
-                    <div className='flex flex-col items-center gap-3'>
-                      <Package size={48} className='text-slate-200 dark:text-slate-800' />
-                      <p className='font-display font-bold text-lg'>No products found</p>
-                      <p className='text-xs'>Try adjusting your search or add a new product.</p>
                     </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </Card>
+      </div>
+
+      {/* Modals */}
+      <ProductModal
+        isOpen={isProductModalOpen}
+        onClose={() => {
+          setIsProductModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        onSave={handleProductSave}
+        product={selectedProduct}
+        selectedBrandId={selectedBrandId}
+      />
+
+      <BrandModal isOpen={isBrandModalOpen} onClose={() => setIsBrandModalOpen(false)} onSave={handleBrandSave} />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import type { Product, OrderItem } from "../types";
 
 interface CartItem extends OrderItem {
   id: string; // unique cart item id (e.g., productId-priceType)
+  unit?: string;
 }
 
 interface POSState {
@@ -12,6 +13,7 @@ interface POSState {
   addItem: (product: Product, isWholesale?: boolean) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
+  updateItemPrice: (id: string, newPrice: number) => void;
   reorderCart: (newCart: CartItem[]) => void;
   clearCart: () => void;
   subtotal: number;
@@ -65,42 +67,45 @@ export const usePOSStore = create<POSState>((set, get) => {
     customerName: "Cash Customer",
     storeCredit: 0,
 
-    fetchProducts: async (searchQuery = "", category = "All") => {
-      let sql = `
-        SELECT p.*, c.name as category 
-        FROM products p 
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE 1=1
-      `;
-      const params = [];
+    fetchProducts: async (search = "", category = "All") => {
+      try {
+        const sql =
+          category === "All"
+            ? `
+          SELECT p.*, b.name as brand 
+          FROM products p 
+          LEFT JOIN brands b ON p.brand_id = b.id
+          WHERE p.name LIKE ? OR p.sku LIKE ?
+        `
+            : `
+          SELECT p.*, b.name as brand 
+          FROM products p 
+          LEFT JOIN brands b ON p.brand_id = b.id
+          WHERE (p.name LIKE ? OR p.sku LIKE ?) AND b.name = ?
+        `;
 
-      if (searchQuery) {
-        sql += " AND (p.name LIKE ? OR p.sku LIKE ?)";
-        params.push(`%${searchQuery}%`, `%${searchQuery}%`);
+        const params = category === "All" ? [`%${search}%`, `%${search}%`] : [`%${search}%`, `%${search}%`, category];
+
+        const res = await dbService.query(sql, params);
+
+        set({
+          products: res.map((p) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            price: p.price,
+            wholesalePrice: p.wholesale_price,
+            costPrice: p.cost_price,
+            stock: p.stock,
+            brand: p.brand,
+            image: p.image,
+            description: p.description,
+            unit: p.unit || "item",
+          })),
+        });
+      } catch (error) {
+        console.error("Failed to fetch products:", error);
       }
-
-      if (category !== "All") {
-        sql += " AND c.name = ?";
-        params.push(category);
-      }
-
-      const results = await dbService.query(sql, params);
-
-      // Map DB fields to Product interface if needed (mostly naming consistency)
-      const mappedProducts = results.map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        sku: p.sku,
-        category: p.category,
-        price: p.price,
-        wholesalePrice: p.wholesale_price,
-        costPrice: p.cost_price,
-        image: p.image,
-        stock: p.stock,
-      }));
-
-      set({ products: mappedProducts });
     },
 
     setCustomerName: (name: string) => set({ customerName: name }),
@@ -145,14 +150,20 @@ export const usePOSStore = create<POSState>((set, get) => {
             [crypto.randomUUID(), item.productId, "sale", -item.quantity, product.stock, newStock, `Sale #${orderId.slice(0, 8)}`],
           );
         }
-
-        // 3. Add to Sync Queue
-        await dbService.execute(
-          `INSERT INTO sync_queue (id, action_type, entity_id, payload_json) 
-           VALUES (?, ?, ?, ?)`,
-          [crypto.randomUUID(), "CREATE_ORDER", orderId, JSON.stringify({ orderId, items: cart, total })],
-        );
       }
+
+      // 3. Centralized Sync Queue Entry
+      await dbService.enqueueSync("CREATE_ORDER", orderId, {
+        orderId,
+        customerName,
+        items: cart,
+        subtotal,
+        discount,
+        tax,
+        total,
+        paymentMethod,
+        createdAt: new Date().toISOString(),
+      });
 
       return orderId;
     },
@@ -189,6 +200,7 @@ export const usePOSStore = create<POSState>((set, get) => {
             price: priceToUse,
             total: priceToUse,
             priceType,
+            unit: product.unit || "item",
           },
         ];
       }
@@ -211,6 +223,20 @@ export const usePOSStore = create<POSState>((set, get) => {
       const { cart, isTaxEnabled, discountValue, discountType, storeCredit } = get();
       const newCart = cart.map((item) => (item.id === id ? { ...item, quantity, total: quantity * item.price } : item));
       set({ cart: newCart, ...calculateTotals(newCart, isTaxEnabled, discountValue, discountType, storeCredit) });
+    },
+
+    updateItemPrice: (id: string, newPrice: number) => {
+      const { cart, isTaxEnabled, discountValue, discountType, storeCredit } = get();
+      const updatedCart = cart.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              price: newPrice,
+              total: newPrice * item.quantity,
+            }
+          : item,
+      );
+      set({ cart: updatedCart, ...calculateTotals(updatedCart, isTaxEnabled, discountValue, discountType, storeCredit) });
     },
 
     reorderCart: (newCart: CartItem[]) => {

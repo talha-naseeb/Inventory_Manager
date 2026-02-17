@@ -4,39 +4,48 @@ export type PaymentMethod = "cash" | "card" | "bank" | "split";
 export interface Product {
   id: string;
   name: string;
-  sku: string;
-  price: number;
-  wholesalePrice: number; // Added wholesale price
-  costPrice: number;
-  stock: number;
-  category: string;
-  image?: string;
   description?: string;
+  sku: string;
+  brand?: string;
+  brandId?: string;
+  price: number;
+  wholesalePrice: number;
+  costPrice?: number;
+  image?: string;
+  stock: number;
+  unit?: string;
+}
+
+export interface Brand {
+  id: string;
+  name: string;
+  description?: string;
+  logo?: string;
 }
 
 export interface OrderItem {
-  productId: string;
+  id: string;
+  productId?: string;
   name: string;
-  quantity: number;
   price: number;
+  quantity: number;
   total: number;
-  priceType: "retail" | "wholesale"; // Track which price was used
+  priceType: "retail" | "wholesale";
 }
 
 export interface Order {
   id: string;
+  customerId?: string;
   customerName?: string;
   items: OrderItem[];
   subtotal: number;
   discount: number;
   tax: number;
   total: number;
-  storeCredit?: number;
-  status: OrderStatus;
-  paymentMethod: PaymentMethod;
+  paymentMethod: string;
+  storeCreditUsed?: number;
+  status: string;
   createdAt: string;
-  originalOrderId?: string; // For returns
-  returnReason?: string; // For returns
 }
 
 export type StaffRole = "owner" | "admin" | "manager" | "cashier";
@@ -44,13 +53,15 @@ export type StaffRole = "owner" | "admin" | "manager" | "cashier";
 export interface Staff {
   id: string;
   name: string;
-  role: StaffRole;
+  pin: string;
+  role: "owner" | "admin" | "manager" | "cashier";
+  permissions?: string;
   status: "active" | "inactive";
 }
 
 export interface ActivityLog {
   id: string;
-  user: string;
+  staffId: string;
   action: string;
   target: string;
   timestamp: string;

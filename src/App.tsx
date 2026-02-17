@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { Layout } from "./components/layout/Layout.tsx";
 import { Dashboard } from "./pages/Dashboard.tsx";
@@ -9,10 +9,16 @@ import { SalesHistory } from "./pages/SalesHistory.tsx";
 import { Inventory } from "./pages/Inventory.tsx";
 
 import { useAuthStore } from "./store/useAuthStore";
+import { syncService } from "./services/syncService";
 
 function App() {
   const { isAuthenticated } = useAuthStore();
   const [currentPage, setCurrentPage] = useState("dashboard");
+
+  useEffect(() => {
+    syncService.start();
+    return () => syncService.stop();
+  }, []);
 
   const renderPage = () => {
     switch (currentPage) {

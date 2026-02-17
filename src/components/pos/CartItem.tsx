@@ -1,21 +1,54 @@
-import React from "react";
-import { Minus, Plus, Trash2, GripVertical } from "lucide-react";
+import React, { useState } from "react";
+import { Minus, Plus, Trash2, GripVertical, Edit2, Check, X } from "lucide-react";
 import { useThemeStore } from "../../store/useThemeStore";
+import { useAuthStore } from "../../store/useAuthStore";
 
 interface CartItemProps {
   id: string;
-  productId: string;
+  productId?: string;
   name: string;
   price: number;
   quantity: number;
   total: number;
   priceType?: "retail" | "wholesale";
+  unit?: string;
   onUpdateQty: (qty: number) => void;
+  onUpdatePrice?: (newPrice: number) => void;
 }
 
-export const CartItem: React.FC<CartItemProps> = ({ name, price, quantity, total, priceType, onUpdateQty }) => {
+export const CartItem: React.FC<CartItemProps> = ({ name, price, quantity, total, priceType, unit, onUpdateQty, onUpdatePrice }) => {
   const { businessDetails } = useThemeStore();
+  const { currentStaff } = useAuthStore();
   const currency = businessDetails.currency;
+
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editedPrice, setEditedPrice] = useState(price.toString());
+
+  // Check if user can edit prices (Admin or Manager only)
+  const canEditPrice = currentStaff && (currentStaff.role === "admin" || currentStaff.role === "manager") && onUpdatePrice;
+
+  const handlePriceEdit = () => {
+    setEditedPrice(price.toString());
+    setIsEditingPrice(true);
+  };
+
+  const handlePriceSave = () => {
+    const newPrice = parseFloat(editedPrice);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      alert("Please enter a valid price greater than 0");
+      setEditedPrice(price.toString());
+      return;
+    }
+    if (onUpdatePrice) {
+      onUpdatePrice(newPrice);
+    }
+    setIsEditingPrice(false);
+  };
+
+  const handlePriceCancel = () => {
+    setEditedPrice(price.toString());
+    setIsEditingPrice(false);
+  };
 
   return (
     <div className='flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group'>
@@ -31,9 +64,43 @@ export const CartItem: React.FC<CartItemProps> = ({ name, price, quantity, total
             </span>
           )}
         </div>
-        <p className='text-xs text-slate-500'>
-          {currency} {price.toFixed(2)} / unit
-        </p>
+
+        {/* Price per unit - editable for Admin/Manager */}
+        <div className='flex items-center gap-1'>
+          {isEditingPrice ? (
+            <div className='flex items-center gap-1'>
+              <input
+                type='number'
+                step='0.01'
+                value={editedPrice}
+                onChange={(e) => setEditedPrice(e.target.value)}
+                className='w-20 px-2 py-0.5 text-xs border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary'
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handlePriceSave();
+                  if (e.key === "Escape") handlePriceCancel();
+                }}
+              />
+              <button onClick={handlePriceSave} className='p-0.5 text-green-600 hover:text-green-700'>
+                <Check size={14} />
+              </button>
+              <button onClick={handlePriceCancel} className='p-0.5 text-rose-600 hover:text-rose-700'>
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className='text-xs text-slate-500'>
+                {currency} {price.toFixed(2)} / {unit || "item"}
+              </p>
+              {canEditPrice && (
+                <button onClick={handlePriceEdit} className='opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-primary transition-all' title='Edit price (Admin/Manager only)'>
+                  <Edit2 size={12} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       <div className='flex items-center bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-lg p-1'>
