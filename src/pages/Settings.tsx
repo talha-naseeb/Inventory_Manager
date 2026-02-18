@@ -1,26 +1,41 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Palette, Store, Users, Settings as SettingsIcon, Sliders } from "lucide-react";
+import { AuditLogs } from "../components/settings/AuditLogs";
+import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ThemeSettings } from "../components/settings/ThemeSettings";
 import { BusinessSettings } from "../components/settings/BusinessSettings";
 import { StaffSettings } from "../components/settings/StaffSettings";
 import { SystemSettings } from "../components/settings/SystemSettings";
+import { LicenseSettings } from "../components/settings/LicenseSettings";
 
-type TabType = "theme" | "business" | "staff" | "system";
+type TabType = "theme" | "business" | "staff" | "system" | "license" | "logs";
 
-export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>("theme");
+interface SettingsProps {
+  initialTab?: string;
+}
+
+export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
+  const [activeTab, setActiveTab] = useState<TabType>((initialTab as TabType) || "theme");
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as TabType);
+    }
+  }, [initialTab]);
 
   const tabs = [
     { id: "theme", label: "Theme & Style", icon: <Palette size={18} /> },
     { id: "business", label: "Shop Details", icon: <Store size={18} /> },
     { id: "system", label: "System Preferences", icon: <Sliders size={18} /> },
     { id: "staff", label: "Staff & Roles", icon: <Users size={18} /> },
+    { id: "license", label: "License & System", icon: <Key size={18} /> },
+    { id: "logs", label: "Audit Logs", icon: <FileText size={18} /> },
   ];
 
   return (
     <div className='max-w-5xl mx-auto space-y-8'>
+      {/* ... header ... */}
       <div className='flex items-center gap-4 mb-4'>
         <div className='p-3 bg-primary/10 text-primary rounded-2xl'>
           <SettingsIcon size={24} />
@@ -31,7 +46,7 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      <div className='flex gap-2 p-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-2xl w-fit'>
+      <div className='flex flex-wrap gap-2 p-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-2xl w-fit'>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -54,6 +69,8 @@ export const Settings: React.FC = () => {
             {activeTab === "business" && <BusinessSettings />}
             {activeTab === "system" && <SystemSettings />}
             {activeTab === "staff" && <StaffSettings />}
+            {activeTab === "license" && <LicenseSettings />}
+            {activeTab === "logs" && <AuditLogs />}
           </motion.div>
         </AnimatePresence>
       </div>

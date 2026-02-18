@@ -24,12 +24,14 @@ interface POSState {
   discountType: "fixed" | "percent";
   discountValue: number;
   customerName: string;
+  customerId: string | null;
   storeCredit: number;
   setTaxEnabled: (enabled: boolean) => void;
   setDiscount: (value: number, type: "fixed" | "percent") => void;
   setCustomerName: (name: string) => void;
+  setCustomerId: (id: string | null, name: string) => void;
   setStoreCredit: (amount: number) => void;
-  completeOrder: (paymentMethod: string) => Promise<string>;
+  completeOrder: (paymentMethod: string, staffId: string | null) => Promise<string>;
 }
 
 import { dbService } from "../services/database";
@@ -65,6 +67,7 @@ export const usePOSStore = create<POSState>((set, get) => {
     discountType: "fixed",
     discountValue: 0,
     customerName: "Cash Customer",
+    customerId: null,
     storeCredit: 0,
 
     fetchProducts: async (search = "", category = "All") => {
@@ -110,20 +113,22 @@ export const usePOSStore = create<POSState>((set, get) => {
 
     setCustomerName: (name: string) => set({ customerName: name }),
 
+    setCustomerId: (id: string | null, name: string) => set({ customerId: id, customerName: name }),
+
     setStoreCredit: (amount: number) => {
       const { cart, isTaxEnabled, discountValue, discountType } = get();
       set({ storeCredit: amount, ...calculateTotals(cart, isTaxEnabled, discountValue, discountType, amount) });
     },
 
-    completeOrder: async (paymentMethod: string) => {
-      const { cart, subtotal, discount, tax, total, customerName, storeCredit } = get();
+    completeOrder: async (paymentMethod: string, staffId: string | null) => {
+      const { cart, subtotal, discount, tax, total, customerName, customerId, storeCredit } = get();
       const orderId = crypto.randomUUID();
 
-      // 1. Create the Order
+      // 1. Create the Order (with customer_id if linked)
       await dbService.execute(
-        `INSERT INTO orders (id, customer_name, subtotal, discount, tax, total, payment_method, store_credit_used, status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, customerName, subtotal, discount, tax, total, paymentMethod, storeCredit, "completed"],
+        `INSERT INTO orders (id, customer_id, customer_name, subtotal, discount, tax, total, payment_method, store_credit_used, status, staff_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, customerId || null, customerName, subtotal, discount, tax, total, paymentMethod, storeCredit, "completed", staffId],
       );
 
       // 2. Insert Order Items & Update Stock
@@ -252,6 +257,7 @@ export const usePOSStore = create<POSState>((set, get) => {
         total: 0,
         discountValue: 0,
         customerName: "Cash Customer",
+        customerId: null,
         storeCredit: 0,
       }),
   };

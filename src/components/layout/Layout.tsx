@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Moon, Sun, ChevronLeft, ChevronRight, LogOut, History } from "lucide-react";
+import { LayoutDashboard, ShoppingCart, Package, Users, Settings, Moon, Sun, ChevronLeft, ChevronRight, LogOut, History, BarChart2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn, getSidebarContrast } from "../../lib/utils";
@@ -27,6 +27,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageCha
     { id: "pos", icon: <ShoppingCart size={20} />, label: "POS", roles: ["owner", "admin", "manager", "cashier"] },
     { id: "sales-history", icon: <History size={20} />, label: "Sales History", roles: ["owner", "admin", "manager", "cashier"] },
     { id: "inventory", icon: <Package size={20} />, label: "Inventory", roles: ["owner", "admin", "manager"] },
+    { id: "reports", icon: <BarChart2 size={20} />, label: "Reports", roles: ["owner", "admin", "manager"] },
     { id: "customers", icon: <Users size={20} />, label: "Customers", roles: ["owner", "admin", "manager", "cashier"] },
     { id: "settings", icon: <Settings size={20} />, label: "Settings", roles: ["owner", "admin"] },
   ];

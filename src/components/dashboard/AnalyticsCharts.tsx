@@ -2,24 +2,12 @@ import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tool
 import { useThemeStore } from "../../store/useThemeStore";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 
-const SALES_DATA = [
-  { name: "Mon", sales: 4000, orders: 24 },
-  { name: "Tue", sales: 3000, orders: 18 },
-  { name: "Wed", sales: 5000, orders: 29 },
-  { name: "Thu", sales: 2780, orders: 20 },
-  { name: "Fri", sales: 6890, orders: 42 },
-  { name: "Sat", sales: 8390, orders: 55 },
-  { name: "Sun", sales: 7490, orders: 48 },
-];
+interface AnalyticsChartsProps {
+  salesData: { name: string; sales: number; orders: number }[];
+  categoryData: { name: string; value: number; color: string }[];
+}
 
-const CATEGORY_DATA = [
-  { name: "Beverages", value: 45, color: "#6366f1" },
-  { name: "Bakery", value: 30, color: "#8b5cf6" },
-  { name: "Dairy", value: 15, color: "#ec4899" },
-  { name: "Grains", value: 10, color: "#f43f5e" },
-];
-
-export const AnalyticsCharts: React.FC = () => {
+export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ salesData, categoryData }) => {
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
 
@@ -40,7 +28,7 @@ export const AnalyticsCharts: React.FC = () => {
         </CardHeader>
         <CardContent className='p-0 h-[300px]'>
           <ResponsiveContainer width='100%' height='100%'>
-            <AreaChart data={SALES_DATA} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+            <AreaChart data={salesData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id='colorSales' x1='0' y1='0' x2='0' y2='1'>
                   <stop offset='5%' stopColor='#6366f1' stopOpacity={0.1} />
@@ -69,11 +57,11 @@ export const AnalyticsCharts: React.FC = () => {
       {/* Category Performance Chart */}
       <Card className='border-none shadow-sm dark:bg-dark-surface overflow-hidden'>
         <CardHeader className='pb-2'>
-          <CardTitle className='text-base font-bold text-slate-900 dark:text-white'>Category Distribution</CardTitle>
+          <CardTitle className='text-base font-bold text-slate-900 dark:text-white'>Brand Performance</CardTitle>
         </CardHeader>
         <CardContent className='p-0 h-[300px]'>
           <ResponsiveContainer width='100%' height='100%'>
-            <BarChart data={CATEGORY_DATA} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+            <BarChart data={categoryData} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
               <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='#e2e8f0' opacity={0.5} />
               <XAxis dataKey='name' axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: "#94a3b8" }} dy={10} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600, fill: "#94a3b8" }} tickFormatter={(value) => `${currency} ${value}`} />
@@ -83,7 +71,7 @@ export const AnalyticsCharts: React.FC = () => {
                 formatter={(value: any) => [`${currency} ${value.toLocaleString()}`, "Sales"]}
               />
               <Bar dataKey='value' radius={[6, 6, 0, 0]} barSize={35}>
-                {CATEGORY_DATA.map((entry, index) => (
+                {categoryData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Bar>

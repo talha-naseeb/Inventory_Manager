@@ -3,6 +3,8 @@ export interface DbResponse {
   lastInsertRowid?: number | string;
 }
 
+import type { ActivityLog } from "../types";
+
 export const dbService = {
   async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
     if (!window.electronAPI) {
@@ -123,6 +125,26 @@ export const dbService = {
   },
 
   /**
+   * Get sales trend (daily)
+   */
+  async getSalesTrend(startDate?: string, endDate?: string) {
+    const dateFilter = startDate && endDate ? `WHERE created_at BETWEEN ? AND ?` : "";
+    const params = startDate && endDate ? [startDate, endDate] : [];
+
+    return this.query(
+      `SELECT 
+        strftime('%Y-%m-%d', created_at) as date,
+        SUM(total) as sales,
+        COUNT(id) as orders
+       FROM orders
+       ${dateFilter}
+       GROUP BY date
+       ORDER BY date ASC`,
+      params,
+    );
+  },
+
+  /**
    * Get sales by brand for a date range
    */
   async getSalesByBrand(startDate?: string, endDate?: string) {
@@ -165,5 +187,117 @@ export const dbService = {
        LIMIT ?`,
       params,
     );
+  },
+
+  /**
+   * Get recent activity from all logs
+   */
+  async getRecentActivity(limit = 10) {
+    return this.query<ActivityLog>(
+      `
+      SELECT 
+        l.id, 
+        s.name as user, 
+        l.action, 
+        'System' as target, 
+        l.created_at as timestamp, 
+        'auth' as type 
+      FROM login_logs l
+      LEFT JOIN staff s ON l.staff_id = s.id
+      
+      UNION ALL
+      
+      SELECT 
+        o.id, 
+        COALESCE(s.name, 'Unknown') as user, 
+        'Order #' || SUBSTR(o.id, 1, 8) as action, 
+        o.customer_name as target, 
+        o.created_at as timestamp, 
+        'order' as type 
+      FROM orders o
+      LEFT JOIN staff s ON o.staff_id = s.id
+
+      UNION ALL
+
+      SELECT 
+        il.id, 
+        COALESCE(s.name, 'System') as user, 
+        il.action_type || ' (' || il.quantity || ')' as action, 
+        p.name as target, 
+        il.created_at as timestamp, 
+        'stock' as type 
+      FROM inventory_logs il
+      LEFT JOIN staff s ON il.staff_id = s.id
+      LEFT JOIN products p ON il.product_id = p.id
+
+      ORDER BY timestamp DESC
+      LIMIT ?
+      `,
+      [limit],
+    );
+  },
+
+  /**
+   * Get all activity logs with pagination
+   */
+  async getAllActivity(limit = 100, offset = 0) {
+    return this.query<ActivityLog>(
+      `
+      SELECT * FROM (
+        SELECT 
+          l.id, 
+          s.name as user, 
+          l.action, 
+          'System' as target, 
+          l.created_at as timestamp, 
+          'auth' as type 
+        FROM login_logs l
+        LEFT JOIN staff s ON l.staff_id = s.id
+        
+        UNION ALL
+        
+        SELECT 
+          o.id, 
+          COALESCE(s.name, 'Unknown') as user, 
+          'Order #' || SUBSTR(o.id, 1, 8) as action, 
+          o.customer_name as target, 
+          o.created_at as timestamp, 
+          'order' as type 
+        FROM orders o
+        LEFT JOIN staff s ON o.staff_id = s.id
+
+        UNION ALL
+
+        SELECT 
+          il.id, 
+          COALESCE(s.name, 'System') as user, 
+          il.action_type || ' (' || il.quantity || ')' as action, 
+          p.name as target, 
+          il.created_at as timestamp, 
+          'stock' as type 
+        FROM inventory_logs il
+        LEFT JOIN staff s ON il.staff_id = s.id
+        LEFT JOIN products p ON il.product_id = p.id
+      )
+      ORDER BY timestamp DESC
+      LIMIT ? OFFSET ?
+      `,
+      [limit, offset],
+    );
+  },
+
+  async getActivityCount() {
+    const result = await this.query<{ count: number }>(
+      `
+      SELECT COUNT(*) as count FROM (
+        SELECT id FROM login_logs
+        UNION ALL
+        SELECT id FROM orders
+        UNION ALL
+        SELECT id FROM inventory_logs
+      )
+      `,
+    );
+    return result[0]?.count || 0;
   },
 };

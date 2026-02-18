@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Search, ShoppingCart, Trash2, CreditCard, Banknote, User, Zap, ZapOff, ArrowRightLeft, X } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, ShoppingCart, Trash2, CreditCard, Banknote, User, Zap, ZapOff, ArrowRightLeft, X, UserCheck } from "lucide-react";
 import { motion, Reorder } from "framer-motion";
 import { ProductCard } from "../components/pos/ProductCard";
 import { CartItem } from "../components/pos/CartItem";
@@ -18,6 +18,14 @@ export const POS: React.FC = () => {
   const [wholesaleMode, setWholesaleMode] = useState(false);
   const [initialPaymentMethod, setInitialPaymentMethod] = useState<"cash" | "card" | null>(null);
 
+  // Customer picker state
+  const [customerResults, setCustomerResults] = useState<{ id: string; name: string; phone: string | null }[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomerName, setSelectedCustomerName] = useState("");
+  const [manualName, setManualName] = useState("Cash Customer");
+  const [saveAsCustomer, setSaveAsCustomer] = useState(false);
+  const customerPickerRef = useRef<HTMLDivElement>(null);
+
   const {
     products,
     fetchProducts,
@@ -32,8 +40,8 @@ export const POS: React.FC = () => {
     discountType,
     discountValue,
     setDiscount,
-    customerName,
-    setCustomerName,
+    customerId,
+    setCustomerId,
     storeCredit,
     setStoreCredit,
   } = usePOSStore();
@@ -44,9 +52,76 @@ export const POS: React.FC = () => {
     fetchProducts(search, selectedCategory);
   }, [search, selectedCategory, fetchProducts]);
 
+  // Search customers as user types (single input drives both name + search)
+  useEffect(() => {
+    if (!manualName.trim() || manualName.trim().toLowerCase() === "cash customer") {
+      setCustomerResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const { dbService } = await import("../services/database");
+        const results = await dbService.query<{ id: string; name: string; phone: string | null }>(`SELECT id, name, phone FROM customers WHERE name LIKE ? OR phone LIKE ? LIMIT 6`, [
+          `%${manualName}%`,
+          `%${manualName}%`,
+        ]);
+        setCustomerResults(results);
+      } catch {
+        setCustomerResults([]);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [manualName]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (customerPickerRef.current && !customerPickerRef.current.contains(e.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectCustomer = (c: { id: string; name: string; phone: string | null }) => {
+    setCustomerId(c.id, c.name);
+    setSelectedCustomerName(c.name);
+    setManualName(c.name);
+    setSaveAsCustomer(false);
+    setCustomerResults([]);
+    setShowCustomerDropdown(false);
+  };
+
+  const clearCustomer = () => {
+    setCustomerId(null, "Cash Customer");
+    setSelectedCustomerName("");
+    setManualName("Cash Customer");
+    setSaveAsCustomer(false);
+    setCustomerResults([]);
+  };
+
   const brands = ["All", ...new Set(products.map((p) => p.brand).filter(Boolean))];
 
   const handleOpenCheckout = (method: "cash" | "card" | null = null) => {
+    // If manual name typed and save checkbox on, create customer first
+    if (!customerId && manualName.trim() && manualName.trim().toLowerCase() !== "cash customer" && saveAsCustomer) {
+      const newId = crypto.randomUUID();
+      import("../services/database").then(({ dbService }) => {
+        dbService.execute(`INSERT OR IGNORE INTO customers (id, name) VALUES (?, ?)`, [newId, manualName.trim()]).then(() => {
+          setCustomerId(newId, manualName.trim());
+          setSelectedCustomerName(manualName.trim());
+          setSaveAsCustomer(false);
+          setInitialPaymentMethod(method);
+          setIsCheckoutOpen(true);
+        });
+      });
+      return;
+    }
+    // If manual name typed but not saving, just set the name
+    if (!customerId && manualName.trim()) {
+      setCustomerId(null, manualName.trim());
+    }
     setInitialPaymentMethod(method);
     setIsCheckoutOpen(true);
   };
@@ -150,9 +225,78 @@ export const POS: React.FC = () => {
           {/* Pricing Summary */}
           <div className='p-4 lg:p-5 bg-slate-50/50 dark:bg-dark-bg/50 border-t border-slate-100 dark:border-dark-border space-y-4'>
             <div className='space-y-3'>
-              <div className='relative'>
-                <User className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={14} />
-                <Input placeholder='Recipient Name (Optional)' className='pl-9 h-10 text-xs bg-white dark:bg-dark-surface' value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+              {/* Customer Section */}
+              <div ref={customerPickerRef} className='relative space-y-2'>
+                {customerId ? (
+                  // Linked customer chip
+                  <div className='flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl'>
+                    <UserCheck size={14} className='text-emerald-600 shrink-0' />
+                    <span className='flex-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400 truncate'>{selectedCustomerName}</span>
+                    <button onClick={clearCustomer} className='text-emerald-500 hover:text-emerald-700 transition-colors'>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className='space-y-2'>
+                    {/* Single input: name + search combined */}
+                    <div className='relative'>
+                      <User className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={14} />
+                      <input
+                        type='text'
+                        value={manualName}
+                        onChange={(e) => {
+                          setManualName(e.target.value);
+                          setShowCustomerDropdown(true);
+                          setSaveAsCustomer(false);
+                        }}
+                        onFocus={(e) => {
+                          e.target.select();
+                          setShowCustomerDropdown(true);
+                        }}
+                        placeholder='Cash Customer'
+                        className='w-full pl-9 pr-3 py-2 h-10 text-xs rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-surface text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40'
+                      />
+                    </div>
+
+                    {/* Save as Customer checkbox */}
+                    {manualName.trim() && manualName.trim().toLowerCase() !== "cash customer" && (
+                      <label className='flex items-center gap-2 cursor-pointer select-none group'>
+                        <div
+                          onClick={() => setSaveAsCustomer((v) => !v)}
+                          className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                            saveAsCustomer ? "bg-primary border-primary" : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800"
+                          }`}
+                        >
+                          {saveAsCustomer && (
+                            <svg width='9' height='7' viewBox='0 0 9 7' fill='none'>
+                              <path d='M1 3.5L3.5 6L8 1' stroke='white' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                            </svg>
+                          )}
+                        </div>
+                        <span className='text-xs text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors'>Save as new customer</span>
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {/* Dropdown */}
+                {showCustomerDropdown && customerResults.length > 0 && !customerId && (
+                  <div className='absolute top-10 left-0 right-0 mt-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-xl shadow-xl z-50 overflow-hidden'>
+                    {customerResults.map((c) => (
+                      <button
+                        key={c.id}
+                        onMouseDown={() => selectCustomer(c)}
+                        className='w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left'
+                      >
+                        <div className='w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0'>{c.name[0].toUpperCase()}</div>
+                        <div>
+                          <p className='text-sm font-semibold text-slate-900 dark:text-white'>{c.name}</p>
+                          {c.phone && <p className='text-xs text-slate-400'>{c.phone}</p>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className='flex justify-between items-center text-slate-500'>

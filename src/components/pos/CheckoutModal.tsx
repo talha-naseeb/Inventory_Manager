@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CreditCard, Banknote, CheckCircle2, Leaf, Printer } from "lucide-react";
 import { Button } from "../ui/Button";
 import { usePOSStore } from "../../store/usePOSStore";
+import { useAuthStore } from "../../store/useAuthStore";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
 import { ReceiptPreview } from "./ReceiptPreview";
@@ -15,8 +16,9 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess, initialPaymentMethod }) => {
-  const { businessDetails } = useThemeStore(); // Added
-  const currency = businessDetails.currency; // Added
+  const { businessDetails } = useThemeStore();
+  const { currentStaff } = useAuthStore();
+  const currency = businessDetails.currency;
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi" | null>(null);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     if (!paymentMethod) return;
     setIsProcessing(true);
     try {
-      await completeOrder(paymentMethod);
+      await completeOrder(paymentMethod, currentStaff?.id || null);
       setIsProcessing(false);
       setIsSuccess(true);
     } catch (error) {

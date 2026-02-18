@@ -14,6 +14,7 @@ db.pragma("foreign_keys = ON");
  * Initialize Tables
  */
 function initDb() {
+  console.log("DB: Initializing database...");
   // Temporarily disable foreign keys for migration
   db.pragma("foreign_keys = OFF");
 
@@ -61,6 +62,7 @@ function initDb() {
       payment_method TEXT,
       store_credit_used REAL DEFAULT 0,
       status TEXT DEFAULT 'completed',
+      staff_id TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL
     );
@@ -262,6 +264,41 @@ function initDb() {
     }
   } catch (err) {
     console.log("Unit column migration:", err.message);
+  }
+
+  // Add staff_id column to orders table if it doesn't exist
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(orders)").all();
+    const hasStaffIdColumn = tableInfo.some((col) => col.name === "staff_id");
+
+    if (!hasStaffIdColumn) {
+      console.log("Adding staff_id column to orders table...");
+      db.exec("ALTER TABLE orders ADD COLUMN staff_id TEXT");
+      console.log("✓ Staff_id column added to orders table");
+    }
+  } catch (err) {
+    console.log("Staff_id column migration:", err.message);
+  }
+
+  // Fix login_logs schema: Ensure created_at exists (migrate from timestamp if needed)
+  // Fix login_logs schema: Ensure created_at exists (migrate from timestamp if needed)
+  try {
+    const tableInfo = db.prepare("PRAGMA table_info(login_logs)").all();
+    const columnNames = tableInfo.map((col) => col.name);
+
+    if (!columnNames.includes("created_at")) {
+      if (columnNames.includes("timestamp")) {
+        console.log("Migrating login_logs: Renaming timestamp to created_at...");
+        db.exec("ALTER TABLE login_logs RENAME COLUMN timestamp TO created_at");
+        console.log("✓ Login_logs column renamed");
+      } else {
+        console.log("Adding created_at column to login_logs table...");
+        db.exec("ALTER TABLE login_logs ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
+        console.log("✓ Created_at column added to login_logs table");
+      }
+    }
+  } catch (err) {
+    console.log("Login_logs migration error:", err.message);
   }
 
   // Seed default brands if none exist
