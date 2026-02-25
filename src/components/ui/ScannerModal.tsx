@@ -35,8 +35,8 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({ isOpen, onClose, onS
             scanner.clear(); // Stop scanning after success
             onClose();
           },
-          (error) => {  
-            // console.warn(error);
+          (_error) => {
+            // console.warn(_error);
           },
         );
 

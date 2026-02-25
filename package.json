@@ -10,7 +10,31 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron .",
-    "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\""
+    "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.inventoriman.pos",
+    "productName": "Inventory Manager POS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico"
+    }
   },
   "dependencies": {
     "@types/react-date-range": "^1.4.10",
@@ -41,6 +65,7 @@
     "clsx": "^2.1.1",
     "concurrently": "^9.2.1",
     "electron": "^40.4.1",
+    "electron-builder": "^26.8.1",
     "electron-is-dev": "^3.0.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
