@@ -1,73 +1,81 @@
-# React + TypeScript + Vite
+# 🏢 Universal Offline-First SaaS POS System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An enterprise-grade, scalable **Desktop POS + Cloud SaaS platform** designed for diverse retail environments. Built for speed, resilience, and multi-branch management.
 
-Currently, two official plugins are available:
+## 🧠 Core Philosophy
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Offline-First**: 100% functional without an active internet connection. Sales are lightning-fast and never blocked by network latency.
+- **Cloud-Enhanced**: Synchronization adds centralized analytics, multi-branch control, and real-time dashboard updates without becoming a bottleneck.
 
-## React Compiler
+## 🏗 System Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```
+Desktop Application (Electron)
+ ├── UI: React with Cyber-Glass Aesthetic
+ ├── Database: Local SQLite (Encrypted)
+ ├── Sync Engine: Change-Log Based (UUID v4)
+ └── Hardware: QR/Barcode Scanning & Thermal Printing
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Cloud Backend (Planned)
+ ├── API: Node.js / PostgreSQL
+ ├── Cache: Redis for Real-time Performance
+ └── Messaging: WebSocket for Instant Sync
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## ✨ Key Features
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### 🛒 Point of Sale (POS)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **High Performance**: Cart management and checkout in milliseconds.
+- **Multi-Unit Logic**: Specialized support for unstitched fabric (Suits/Meters) and standard items.
+- **Interactive Price Editing**: Manager-approved retail price overrides with wholesale price protection.
+- **Professional Receipts**: Thermal-style receipts with custom branding, QR codes, and PKR support.
+
+### 📦 Inventory & Logistics
+
+- **Precision Tracking**: Multi-roll stock management and design-based categorization.
+- **Bulk Operations**: Intelligent CSV Import tool with auto-brand creation.
+- **Audit Trails**: Complete stock ledger logs for every gram/meter of movement.
+- **QR Eco-system**: Generate and scan product labels for instant checkout.
+
+### 👤 Management & Security
+
+- **RBAC**: Role-Based Access Control (Owner, Manager, Cashier) with PIN-based login.
+- **Staff Analytics**: Performance tracking and specialized permission guardrails.
+- **Danger Zone**: Multi-step protected resets for inventory and history.
+
+### 📊 Intelligence
+
+- **Real-time Visualization**: Sales trends, brand distribution, and profitability charts using Recharts.
+- **Compliance**: Daily/Weekly/Monthly reports with Tax and NTN support.
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js (v18+)
+- npm
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development environment (Vite + Electron):
+   ```bash
+   npm run dev:electron
+   ```
+
+## 🎯 Development Roadmap
+
+- [x] **Phase 1**: Core Offline Desktop POS & Local DB
+- [/] **Phase 2**: Cloud SaaS Backend & Multi-tenant API
+- [/] **Phase 3**: Bidirectional Sync Engine
+- [ ] **Phase 4**: WebSocket Real-time Mobile Scanning
+- [ ] **Phase 5**: Mobile App Integration (iOS/Android)
+
+---
+
+_Built for the next generation of retailers._
