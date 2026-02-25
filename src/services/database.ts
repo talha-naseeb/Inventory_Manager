@@ -98,16 +98,18 @@ export const dbService = {
     const dateFilter = startDate && endDate ? `WHERE created_at BETWEEN ? AND ?` : "";
     const params = startDate && endDate ? [startDate, endDate] : [];
 
-    const [revenue, ordersCount, productsCount] = await Promise.all([
+    const [revenue, ordersCount, productsCount, customersCount] = await Promise.all([
       this.getOne<{ total: number }>(`SELECT COALESCE(SUM(total), 0) as total FROM orders ${dateFilter}`, params),
       this.getOne<{ count: number }>(`SELECT COUNT(*) as count FROM orders ${dateFilter}`, params),
       this.getOne<{ count: number }>("SELECT COUNT(*) as count FROM products"),
+      this.getOne<{ count: number }>("SELECT COUNT(*) as count FROM customers"),
     ]);
 
     return {
       totalRevenue: revenue?.total || 0,
       totalOrders: ordersCount?.count || 0,
       activeProducts: productsCount?.count || 0,
+      totalCustomers: customersCount?.count || 0,
     };
   },
 
@@ -390,6 +392,7 @@ export const dbService = {
         oi.price,
         oi.quantity,
         oi.total,
+        oi.unit,
         p.sku
        FROM order_items oi
        LEFT JOIN products p ON oi.product_id = p.id
@@ -398,5 +401,39 @@ export const dbService = {
     );
 
     return { ...order, items };
+  },
+
+  // ============ MAINTENANCE QUERIES ============
+
+  async clearInventory() {
+    await this.execute("DELETE FROM inventory_logs");
+    await this.execute("DELETE FROM rolls");
+    await this.execute("DELETE FROM products");
+    await this.execute("DELETE FROM brands");
+    return { success: true };
+  },
+
+  async clearSales() {
+    await this.execute("DELETE FROM returns");
+    await this.execute("DELETE FROM order_items");
+    await this.execute("DELETE FROM orders");
+    await this.execute("UPDATE products SET stock = 0");
+    return { success: true };
+  },
+
+  async clearCustomers() {
+    await this.execute("UPDATE orders SET customer_id = NULL");
+    await this.execute("DELETE FROM customers");
+    return { success: true };
+  },
+
+  async factoryReset() {
+    await this.execute("DELETE FROM sync_queue");
+    await this.execute("DELETE FROM login_logs");
+    await this.execute("DELETE FROM settings");
+    await this.clearSales();
+    await this.clearCustomers();
+    await this.clearInventory();
+    return { success: true };
   },
 };

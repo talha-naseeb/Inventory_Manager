@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuditLogs } from "../components/settings/AuditLogs";
-import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key } from "lucide-react";
+import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key, Database as DatabaseSettingsIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ThemeSettings } from "../components/settings/ThemeSettings";
 import { BusinessSettings } from "../components/settings/BusinessSettings";
 import { StaffSettings } from "../components/settings/StaffSettings";
 import { SystemSettings } from "../components/settings/SystemSettings";
 import { LicenseSettings } from "../components/settings/LicenseSettings";
+import { DatabaseSettings } from "../components/settings/DatabaseSettings";
 
-type TabType = "theme" | "business" | "staff" | "system" | "license" | "logs";
+type TabType = "theme" | "business" | "system" | "staff" | "license" | "logs" | "database";
 
 interface SettingsProps {
   initialTab?: string;
@@ -29,6 +30,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
     { id: "business", label: "Shop Details", icon: <Store size={18} /> },
     { id: "system", label: "System Preferences", icon: <Sliders size={18} /> },
     { id: "staff", label: "Staff & Roles", icon: <Users size={18} /> },
+    { id: "database", label: "Database", icon: <DatabaseSettingsIcon size={18} /> },
     { id: "license", label: "License & System", icon: <Key size={18} /> },
     { id: "logs", label: "Audit Logs", icon: <FileText size={18} /> },
   ];
@@ -69,6 +71,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
             {activeTab === "business" && <BusinessSettings />}
             {activeTab === "system" && <SystemSettings />}
             {activeTab === "staff" && <StaffSettings />}
+            {activeTab === "database" && <DatabaseSettings />}
             {activeTab === "license" && <LicenseSettings />}
             {activeTab === "logs" && <AuditLogs />}
           </motion.div>

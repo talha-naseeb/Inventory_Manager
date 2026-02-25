@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { TrendingUp, Package, ShoppingCart, Users, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, Package, ShoppingCart, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { RecentOrders } from "../components/dashboard/RecentOrders";
 import { ActivityFeed } from "../components/dashboard/ActivityFeed";
@@ -51,7 +51,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         totalRevenue: dashboardStats.totalRevenue,
         totalOrders: dashboardStats.totalOrders,
         activeProducts: dashboardStats.activeProducts,
-        totalCustomers: 0,
+        totalCustomers: dashboardStats.totalCustomers,
       });
 
       // Process Trend Data
@@ -82,29 +82,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       label: "Total Revenue",
       value: isLoading ? "---" : `${currency} ${stats.totalRevenue.toLocaleString()}`,
       icon: <TrendingUp className='text-emerald-500' />,
-      trend: "+12.5%",
-      isPositive: true,
     },
     {
       label: "Total Orders",
       value: isLoading ? "---" : stats.totalOrders.toString(),
       icon: <ShoppingCart className='text-primary' />,
-      trend: "+5.2%",
-      isPositive: true,
     },
     {
       label: "Active Products",
       value: isLoading ? "---" : stats.activeProducts.toString(),
       icon: <Package className='text-amber-500' />,
-      trend: "+2.1%",
-      isPositive: true,
     },
     {
       label: "Total Customers",
       value: isLoading ? "---" : stats.totalCustomers.toString(),
       icon: <Users className='text-indigo-500' />,
-      trend: "+8.4%",
-      isPositive: true,
     },
   ];
 
@@ -145,14 +137,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               >
                 <div className='flex justify-between items-start'>
                   <div className='p-3 bg-slate-50 dark:bg-slate-800 rounded-xl'>{stat.icon}</div>
-                  <div
-                    className={`flex items-center text-xs font-bold px-2 py-1 rounded-full ${
-                      stat.isPositive ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
-                    }`}
-                  >
-                    {stat.trend}
-                    {stat.isPositive ? <ArrowUpRight size={12} className='ml-1' /> : <ArrowDownRight size={12} className='ml-1' />}
-                  </div>
                 </div>
                 <div className='mt-4'>
                   <p className='text-sm text-slate-500 dark:text-slate-400 font-medium'>{stat.label}</p>

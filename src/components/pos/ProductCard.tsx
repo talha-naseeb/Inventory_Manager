@@ -21,6 +21,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode
   const itemId = `${product.id}-${priceType}`;
   const cartItem = cart.find((item) => item.id === itemId);
   const quantity = cartItem?.quantity || 0;
+  const unitSize = product.meters_per_unit && product.meters_per_unit > 1 ? product.meters_per_unit : 1;
+  const displayQuantity = quantity > 0 ? quantity / unitSize : 0;
 
   const handleIncrement = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -30,7 +32,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (quantity > 0) {
-      updateQuantity(itemId, quantity - 1);
+      updateQuantity(itemId, Math.max(0, quantity - unitSize));
     }
   };
 
@@ -50,7 +52,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode
         <div className='flex-1 min-w-0 flex flex-col justify-center'>
           <h4 className='font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100 truncate leading-tight'>{product.name}</h4>
           <p className='text-[10px] text-slate-400 dark:text-slate-500 line-clamp-2 leading-tight mt-1'>{product.description || "Fresh quality item."}</p>
-          <span className='text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-widest mt-1'>{product.category}</span>
+          <span className='text-[8px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-widest mt-1'>{product.brand || "Standard"}</span>
         </div>
       </div>
 
@@ -79,7 +81,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, wholesaleMode
           </button>
 
           <span className={cn("w-6 text-center text-[10px] sm:text-xs font-black transition-all", quantity === 0 ? "text-slate-300 dark:text-slate-600" : "text-slate-900 dark:text-white")}>
-            {quantity}
+            {displayQuantity}
           </span>
 
           <button
