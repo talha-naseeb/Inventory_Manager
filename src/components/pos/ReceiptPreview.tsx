@@ -1,5 +1,5 @@
 import React from "react";
-import { Receipt, MapPin, Phone, Info, ShoppingBag, RotateCcw } from "lucide-react";
+import { MapPin, Phone, Info, ShoppingBag, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import type { OrderItem } from "../../types";
 import { useThemeStore } from "../../store/useThemeStore";
@@ -39,9 +39,15 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
     <div id='printable-receipt' className='bg-white text-slate-900 p-8 max-w-[400px] mx-auto shadow-2xl border border-slate-100 font-mono text-[11px] leading-relaxed'>
       {/* Header */}
       <div className='text-center space-y-1.5 mb-6 pb-6 border-b border-dashed border-slate-200'>
-        <div className='w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg'>
-          <Receipt size={28} />
-        </div>
+        {businessDetails.logo ? (
+          <div className='w-20 h-20 mx-auto mb-3 flex items-center justify-center overflow-hidden rounded-2xl'>
+            <img src={businessDetails.logo} alt='logo' className='w-full h-full object-contain' />
+          </div>
+        ) : (
+          <div className='w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg'>
+            <ShoppingBag size={28} />
+          </div>
+        )}
         <h1 className='text-lg font-black uppercase tracking-tighter text-slate-900'>{businessDetails.name}</h1>
         <div className='flex flex-col items-center gap-0.5 text-slate-500 font-bold uppercase text-[9px]'>
           <div className='flex items-center gap-1'>
@@ -147,7 +153,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             </span>
           </div>
         )}
-        {storeCreditUsed && storeCreditUsed > 0 && (
+        {storeCreditUsed !== undefined && storeCreditUsed > 0 && (
           <div className='flex justify-between items-center text-amber-600 font-bold uppercase text-[10px]'>
             <span>Store Credit</span>
             <span>
@@ -155,9 +161,9 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             </span>
           </div>
         )}
-        <div className='flex justify-between items-center pt-3 mt-1 border-t border-dashed border-slate-200'>
-          <span className='text-[12px] font-black uppercase tracking-widest text-slate-900'>Total Amount</span>
-          <span className='text-xl font-black text-slate-900'>
+        <div className='flex justify-between items-center pt-3 mt-1 border-t border-dashed border-slate-200 gap-4'>
+          <span className='text-[12px] font-black uppercase tracking-widest text-slate-900 shrink-0'>Total Amount</span>
+          <span className='text-xl font-black text-slate-900 whitespace-nowrap text-right'>
             {businessDetails.currency} {total.toFixed(2)}
           </span>
         </div>

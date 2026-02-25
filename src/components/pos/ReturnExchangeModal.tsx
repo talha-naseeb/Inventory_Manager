@@ -17,6 +17,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen
   const [selectedType, setSelectedType] = useState<"refund" | "exchange">("exchange");
   const [returnItems, setReturnItems] = useState<Record<string, number>>({});
   const setStoreCredit = usePOSStore((state) => state.setStoreCredit);
+  const clearCart = usePOSStore((state) => state.clearCart);
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
 
@@ -61,10 +62,29 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen
         "completed",
       ]);
 
+      // --- NEW: Restore Stock and Log Inventory ---
+      for (const item of itemsToRecord) {
+        // Fetch current stock
+        const product = await dbService.getOne<{ stock: number }>("SELECT stock FROM products WHERE id = ?", [item.productId]);
+        if (product) {
+          const newStock = product.stock + item.quantity;
+          await dbService.execute("UPDATE products SET stock = ? WHERE id = ?", [newStock, item.productId]);
+
+          // Log Inventory
+          await dbService.execute(
+            `INSERT INTO inventory_logs (id, product_id, action_type, quantity, previous_stock, current_stock, reason) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [crypto.randomUUID(), item.productId, "return", item.quantity, product.stock, newStock, `Return from Order #${order.id.slice(0, 8)}`],
+          );
+        }
+      }
+      // ------------------------------------------
+
       // Update the original order status to 'returned'
       await dbService.execute(`UPDATE orders SET status = 'returned' WHERE id = ?`, [order.id]);
 
       if (selectedType === "exchange") {
+        clearCart(); // NEW: Clear old items before starting exchange
         setStoreCredit(value, itemsToRecord as any);
       }
 

@@ -127,6 +127,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
     } else {
       alert(`Success! Processed refund of value ${currency} ${value.toFixed(2)}`);
       // Refresh to ensure everything is synced
+      if (selectedOrderDetails) {
+        fetchOrderDetails(selectedOrderDetails.id);
+      }
       loadOrders();
     }
   };
@@ -291,28 +294,47 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
                 <div className='rounded-2xl border border-slate-100 dark:border-dark-border overflow-hidden'>
                   <div className='bg-slate-50 dark:bg-slate-800/50 p-4 grid grid-cols-12 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100 dark:border-dark-border'>
                     <div className='col-span-6'>Item Description</div>
-                    <div className='col-span-2 text-center'>Qty</div>
-                    <div className='col-span-2 text-right'>Price</div>
+                    <div className='col-span-2 text-center'>Qty Sold</div>
+                    <div className='col-span-2 text-right'>Net Qty</div>
                     <div className='col-span-2 text-right'>Total</div>
                   </div>
                   <div className='divide-y divide-slate-50 dark:divide-slate-800'>
-                    {selectedOrderDetails.items.map((item: any, idx: number) => (
-                      <div key={idx} className='p-4 grid grid-cols-12 items-center hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors'>
-                        <div className='col-span-6'>
-                          <p className='font-bold text-slate-800 dark:text-slate-100'>{item.name}</p>
-                          {item.sku && <p className='text-[10px] text-slate-400'>SKU: {item.sku}</p>}
+                    {selectedOrderDetails.items.map((item: any, idx: number) => {
+                      // Calculate returned quantity for THIS item
+                      const returnedQty = orderReturns.reduce((sum, ret) => {
+                        const retItems = JSON.parse(ret.items_json);
+                        const retItem = retItems.find((ri: any) => ri.productId === item.productId);
+                        return sum + (retItem ? retItem.quantity : 0);
+                      }, 0);
+                      const netQty = item.quantity - returnedQty;
+
+                      return (
+                        <div
+                          key={idx}
+                          className={cn("p-4 grid grid-cols-12 items-center hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors", returnedQty > 0 && "bg-rose-50/30 dark:bg-rose-500/5")}
+                        >
+                          <div className='col-span-6'>
+                            <p className='font-bold text-slate-800 dark:text-slate-100'>{item.name}</p>
+                            {item.sku && <p className='text-[10px] text-slate-400'>SKU: {item.sku}</p>}
+                            {returnedQty > 0 && (
+                              <div className='flex items-center gap-1 mt-1'>
+                                <RotateCcw size={10} className='text-rose-500' />
+                                <span className='text-[9px] font-bold text-rose-500 uppercase'>{returnedQty} returned</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className='col-span-2 text-center text-xs font-bold text-slate-400 line-through'>
+                            {item.quantity} {item.unit === "item" ? "pc" : item.unit}
+                          </div>
+                          <div className='col-span-2 text-right font-bold text-slate-900 dark:text-white'>
+                            {netQty} {item.unit === "item" ? "pc" : item.unit}
+                          </div>
+                          <div className='col-span-2 text-right font-black text-slate-900 dark:text-white'>
+                            {currency} {(netQty * item.price).toFixed(2)}
+                          </div>
                         </div>
-                        <div className='col-span-2 text-center font-bold text-slate-600 dark:text-slate-400'>
-                          {item.quantity} {item.unit === "item" ? "pc" : item.unit}
-                        </div>
-                        <div className='col-span-2 text-right text-xs font-medium'>
-                          {currency} {item.price.toFixed(2)}
-                        </div>
-                        <div className='col-span-2 text-right font-black text-slate-900 dark:text-white'>
-                          {currency} {item.total.toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

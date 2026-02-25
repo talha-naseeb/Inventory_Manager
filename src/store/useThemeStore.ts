@@ -12,6 +12,7 @@ export interface BusinessDetails {
   standardSuitLength: number;
   ntn?: string; // Optional NTN/Tax ID
   footerMessage?: string;
+  logo?: string;
 }
 
 interface ThemeState {
@@ -46,6 +47,7 @@ export const useThemeStore = create<ThemeState>()(
         standardSuitLength: 4,
         ntn: "1234567-8",
         footerMessage: "Thank you for shopping with us!",
+        logo: undefined,
       },
       toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
       setPrimaryColor: (color) => set({ primaryColor: color }),
@@ -69,6 +71,7 @@ export const useThemeStore = create<ThemeState>()(
             standardSuitLength: 4,
             ntn: "1234567-8",
             footerMessage: "Thank you for shopping with us!",
+            logo: undefined,
           },
         }),
     }),
