@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, Package } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Package, Upload } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
@@ -7,6 +7,7 @@ import { ProductModal } from "../components/inventory/ProductModal";
 import { BrandSidebar } from "../components/inventory/BrandSidebar";
 import { BrandModal } from "../components/inventory/BrandModal";
 import { dbService } from "../services/database";
+import { BulkImportModal } from "../components/inventory/BulkImportModal";
 import type { Product } from "../types";
 
 interface Brand {
@@ -22,6 +23,7 @@ export const Inventory: React.FC = () => {
   const [search, setSearch] = useState("");
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -184,6 +186,10 @@ export const Inventory: React.FC = () => {
                 Delete All Products
               </Button>
             )}
+            <Button variant='outline' onClick={() => setIsBulkImportOpen(true)}>
+              <Upload size={18} className='mr-2' />
+              Import CSV
+            </Button>
             <Button onClick={handleAddProduct}>
               <Plus size={18} className='mr-2' />
               Add Product
@@ -305,6 +311,15 @@ export const Inventory: React.FC = () => {
       />
 
       <BrandModal isOpen={isBrandModalOpen} onClose={() => setIsBrandModalOpen(false)} onSave={handleBrandSave} />
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        onSave={() => {
+          fetchInventory();
+          fetchBrands();
+        }}
+      />
     </div>
   );
 };
