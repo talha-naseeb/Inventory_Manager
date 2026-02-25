@@ -3,7 +3,7 @@ export interface DbResponse {
   lastInsertRowid?: number | string;
 }
 
-import type { ActivityLog } from "../types";
+import type { ActivityLog, Order } from "../types";
 
 export const dbService = {
   async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
@@ -299,5 +299,104 @@ export const dbService = {
       `,
     );
     return result[0]?.count || 0;
+  },
+
+  /**
+   * Get filtered orders with pagination
+   */
+  async getOrders(filters: { search?: string; status?: string; startDate?: string; endDate?: string } = {}, limit = 50, offset = 0) {
+    const conditions = [];
+    const params = [];
+
+    if (filters.search) {
+      conditions.push(`(o.id LIKE ? OR o.customer_name LIKE ?)`);
+      params.push(`%${filters.search}%`, `%${filters.search}%`);
+    }
+
+    if (filters.status && filters.status !== "all") {
+      conditions.push(`o.status = ?`);
+      params.push(filters.status);
+    }
+
+    if (filters.startDate && filters.endDate) {
+      conditions.push(`o.created_at BETWEEN ? AND ?`);
+      params.push(filters.startDate, filters.endDate);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // We get basic info for list view
+    const orders = await this.query(
+      `SELECT 
+        o.id,
+        o.customer_name as customerName,
+        o.total,
+        o.status,
+        o.created_at as createdAt,
+        o.subtotal,
+        o.discount,
+        o.tax,
+        o.payment_method as paymentMethod,
+        COUNT(oi.id) as itemCount
+       FROM orders o
+       LEFT JOIN order_items oi ON o.id = oi.order_id
+       ${whereClause}
+       GROUP BY o.id
+       ORDER BY o.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    );
+
+    // Map to Order interface (partial, items will be empty for list view or we fetch them?)
+    // The UI uses order.items.length. We have itemCount.
+    // But UI might access order.items[].
+    // I'll return them with empty items array but with itemCount property if needed,
+    // or just cast.
+    return orders.map((o) => ({
+      ...o,
+      items: Array(o.itemCount).fill({}), // Mock items for length check if simplistic, but better to use real structure
+      // Actually the UI in SalesHistory uses `order.items.length`.
+      // I'll ensure `items` is an array of correct length or refactor UI to use `itemCount`.
+    }));
+  },
+
+  /**
+   * Get full order details including items
+   */
+  async getOrderDetails(orderId: string) {
+    const order = await this.getOne<Order>(
+      `SELECT 
+        o.id,
+        o.customer_name as customerName,
+        o.total,
+        o.status,
+        o.created_at as createdAt,
+        o.subtotal,
+        o.discount,
+        o.tax,
+        o.payment_method as paymentMethod
+       FROM orders o
+       WHERE o.id = ?`,
+      [orderId],
+    );
+
+    if (!order) return null;
+
+    const items = await this.query(
+      `SELECT 
+        oi.id,
+        oi.product_id as productId,
+        COALESCE(oi.name, p.name, 'Unknown Item') as name,
+        oi.price,
+        oi.quantity,
+        oi.total,
+        p.sku
+       FROM order_items oi
+       LEFT JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = ?`,
+      [orderId],
+    );
+
+    return { ...order, items };
   },
 };

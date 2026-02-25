@@ -98,6 +98,7 @@ export const Inventory: React.FC = () => {
     if (!confirm("Are you sure you want to delete this product?")) return;
 
     try {
+      await dbService.execute("DELETE FROM inventory_logs WHERE product_id = ?", [id]);
       await dbService.execute("DELETE FROM products WHERE id = ?", [id]);
       await dbService.enqueueSync("DELETE_PRODUCT", id, { id, deletedAt: new Date().toISOString() });
       fetchInventory();
@@ -141,8 +142,9 @@ export const Inventory: React.FC = () => {
     if (!confirm("Last chance! Delete all products?")) return;
 
     try {
-      // First, delete all order_items to avoid foreign key constraint
+      // First, delete all dependent records to avoid foreign key constraint
       await dbService.execute("DELETE FROM order_items");
+      await dbService.execute("DELETE FROM inventory_logs");
 
       // Then delete all products
       await dbService.execute("DELETE FROM products");

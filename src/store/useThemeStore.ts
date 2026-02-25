@@ -8,6 +8,8 @@ export interface BusinessDetails {
   phone: string;
   website: string;
   currency: string;
+  measurementUnit: "meters" | "yards";
+  standardSuitLength: number;
   ntn?: string; // Optional NTN/Tax ID
   footerMessage?: string;
 }
@@ -40,6 +42,8 @@ export const useThemeStore = create<ThemeState>()(
         phone: "+1 (555) 000-0000",
         website: "www.inventoriman.com",
         currency: "PKR",
+        measurementUnit: "meters",
+        standardSuitLength: 4,
         ntn: "1234567-8",
         footerMessage: "Thank you for shopping with us!",
       },
@@ -61,6 +65,8 @@ export const useThemeStore = create<ThemeState>()(
             phone: "+1 (555) 000-0000",
             website: "www.inventoriman.com",
             currency: "PKR",
+            measurementUnit: "meters",
+            standardSuitLength: 4,
             ntn: "1234567-8",
             footerMessage: "Thank you for shopping with us!",
           },

@@ -36,6 +36,7 @@ export const RecentOrders: React.FC<RecentOrdersProps> = ({ currency }) => {
           <table className='w-full text-left bg-white dark:bg-dark-surface'>
             <thead className='sticky top-0 z-10 bg-white dark:bg-dark-surface'>
               <tr className='border-b border-slate-100 dark:border-dark-border text-slate-500 text-sm font-medium'>
+                <th className='pb-4 pt-2 font-semibold bg-white dark:bg-dark-surface'>#ID</th>
                 <th className='pb-4 pt-2 font-semibold bg-white dark:bg-dark-surface'>Customer</th>
                 <th className='pb-4 pt-2 font-semibold bg-white dark:bg-dark-surface'>Total</th>
                 <th className='pb-4 pt-2 font-semibold bg-white dark:bg-dark-surface'>Status</th>
@@ -52,6 +53,7 @@ export const RecentOrders: React.FC<RecentOrdersProps> = ({ currency }) => {
               ) : (
                 orders.map((order) => (
                   <tr key={order.id} className='group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors'>
+                    <td className='py-4 text-sm font-bold text-slate-900 dark:text-white'>#{order.id.slice(0, 8)}</td>
                     <td className='py-4 text-sm text-slate-600 dark:text-slate-400 font-medium'>{order.customerName || "Walk-in"}</td>
                     <td className='py-4 text-sm font-bold'>
                       {currency} {order.total.toFixed(2)}

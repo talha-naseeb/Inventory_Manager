@@ -38,6 +38,8 @@ function initDb() {
       cost_price REAL DEFAULT 0,
       image TEXT,
       stock INTEGER DEFAULT 0,
+      unit TEXT DEFAULT 'item',
+      meters_per_unit REAL DEFAULT 1.0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (brand_id) REFERENCES brands (id) ON DELETE SET NULL
     );
@@ -63,8 +65,21 @@ function initDb() {
       store_credit_used REAL DEFAULT 0,
       status TEXT DEFAULT 'completed',
       staff_id TEXT,
+      original_order_id TEXT, -- Link for exchanges
+      returned_items_json TEXT, -- List of items surfactant during exchange
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL
+      FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
+      FOREIGN KEY (original_order_id) REFERENCES orders (id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS returns (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL,
+      return_value REAL NOT NULL,
+      items_json TEXT NOT NULL,
+      status TEXT DEFAULT 'completed',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS order_items (
@@ -126,6 +141,17 @@ function initDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS rolls (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      roll_number TEXT,
+      initial_length REAL NOT NULL,
+      current_length REAL NOT NULL,
+      unit TEXT DEFAULT 'meters',
+      status TEXT DEFAULT 'active', -- 'active', 'finished', 'archived'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+    );
   `);
 
   // Migrate existing categories to brands if categories table exists
@@ -163,13 +189,16 @@ function initDb() {
             cost_price REAL DEFAULT 0,
             image TEXT,
             stock INTEGER DEFAULT 0,
+            unit TEXT DEFAULT 'item',
+            meters_per_unit REAL DEFAULT 1.0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (brand_id) REFERENCES brands (id) ON DELETE SET NULL
           );
 
           -- Copy data (category_id becomes brand_id)
-          INSERT INTO products_temp (id, name, description, sku, brand_id, price, wholesale_price, cost_price, image, stock, created_at)
-          SELECT id, name, description, sku, category_id, price, wholesale_price, cost_price, image, stock, created_at FROM products;
+          INSERT INTO products_temp (id, name, description, sku, brand_id, price, wholesale_price, cost_price, image, stock, unit, meters_per_unit, created_at)
+          SELECT id, name, description, sku, category_id, price, wholesale_price, cost_price, image, stock, 
+                 COALESCE(unit, 'item'), COALESCE(meters_per_unit, 1.0), created_at FROM products;
 
           -- Drop old table
           DROP TABLE products;
@@ -252,33 +281,27 @@ function initDb() {
     console.log("Brand cleanup check:", err.message);
   }
 
-  // Add unit column to products table if it doesn't exist
-  try {
-    const tableInfo = db.prepare("PRAGMA table_info(products)").all();
-    const hasUnitColumn = tableInfo.some((col) => col.name === "unit");
-
-    if (!hasUnitColumn) {
-      console.log("Adding unit column to products table...");
-      db.exec("ALTER TABLE products ADD COLUMN unit TEXT DEFAULT 'item'");
-      console.log("✓ Unit column added to products table");
+  // Helper to ensure column exists
+  const ensureColumn = (tableName, colName, colType) => {
+    try {
+      const info = db.prepare(`PRAGMA table_info(${tableName})`).all();
+      if (!info.some((c) => c.name === colName)) {
+        console.log(`DB: Adding column ${colName} to ${tableName}...`);
+        db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${colName} ${colType}`);
+        console.log(`✓ Added ${colName} to ${tableName}`);
+      }
+    } catch (err) {
+      console.error(`Error ensuring column ${colName} in ${tableName}:`, err.message);
     }
-  } catch (err) {
-    console.log("Unit column migration:", err.message);
-  }
+  };
 
-  // Add staff_id column to orders table if it doesn't exist
-  try {
-    const tableInfo = db.prepare("PRAGMA table_info(orders)").all();
-    const hasStaffIdColumn = tableInfo.some((col) => col.name === "staff_id");
-
-    if (!hasStaffIdColumn) {
-      console.log("Adding staff_id column to orders table...");
-      db.exec("ALTER TABLE orders ADD COLUMN staff_id TEXT");
-      console.log("✓ Staff_id column added to orders table");
-    }
-  } catch (err) {
-    console.log("Staff_id column migration:", err.message);
-  }
+  // Ensure all columns exist across tables
+  ensureColumn("orders", "returned_items_json", "TEXT");
+  ensureColumn("orders", "original_order_id", "TEXT");
+  ensureColumn("orders", "staff_id", "TEXT");
+  ensureColumn("order_items", "price_type", "TEXT DEFAULT 'retail'");
+  ensureColumn("products", "unit", "TEXT DEFAULT 'item'");
+  ensureColumn("products", "meters_per_unit", "REAL DEFAULT 1.0");
 
   // Fix login_logs schema: Ensure created_at exists (migrate from timestamp if needed)
   // Fix login_logs schema: Ensure created_at exists (migrate from timestamp if needed)
@@ -316,6 +339,8 @@ function initDb() {
     defaultBrands.forEach((brand) => insertBrand.run(brand.id, brand.name));
     console.log("Default brands seeded");
   }
+
+  console.log("✓ DB: Database fully initialized and migrated");
 }
 
 module.exports = {

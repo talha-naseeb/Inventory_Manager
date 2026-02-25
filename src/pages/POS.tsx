@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Search, ShoppingCart, Trash2, CreditCard, Banknote, User, Zap, ZapOff, ArrowRightLeft, X, UserCheck } from "lucide-react";
+import { Search, ShoppingCart, Trash2, User, Zap, ZapOff, ArrowRightLeft, X, UserCheck, ShoppingBag } from "lucide-react";
 import { motion, Reorder } from "framer-motion";
 import { ProductCard } from "../components/pos/ProductCard";
 import { CartItem } from "../components/pos/CartItem";
+import type { OrderItem } from "../types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
@@ -10,6 +11,7 @@ import { CheckoutModal } from "../components/pos/CheckoutModal";
 import { usePOSStore } from "../store/usePOSStore";
 import { useThemeStore } from "../store/useThemeStore";
 import { cn } from "../lib/utils";
+import { ScannerModal } from "../components/ui/ScannerModal";
 
 export const POS: React.FC = () => {
   const [search, setSearch] = useState("");
@@ -17,6 +19,7 @@ export const POS: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [wholesaleMode, setWholesaleMode] = useState(false);
   const [initialPaymentMethod, setInitialPaymentMethod] = useState<"cash" | "card" | null>(null);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Customer picker state
   const [customerResults, setCustomerResults] = useState<{ id: string; name: string; phone: string | null }[]>([]);
@@ -44,6 +47,7 @@ export const POS: React.FC = () => {
     setCustomerId,
     storeCredit,
     setStoreCredit,
+    returnExchangeData,
   } = usePOSStore();
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
@@ -126,6 +130,39 @@ export const POS: React.FC = () => {
     setIsCheckoutOpen(true);
   };
 
+  const handleScan = async (sku: string) => {
+    try {
+      // Find product by SKU
+      const product = products.find((p) => p.sku === sku);
+      if (product) {
+        usePOSStore.getState().addItem(product, wholesaleMode);
+      } else {
+        // Fallback: search in DB if not in currently fetched products
+        const { dbService } = await import("../services/database");
+        const results = await dbService.query<any>(`SELECT * FROM products WHERE sku = ? LIMIT 1`, [sku]);
+        if (results.length > 0) {
+          const p = results[0];
+          usePOSStore.getState().addItem(
+            {
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              price: p.price,
+              wholesalePrice: p.wholesale_price,
+              costPrice: p.cost_price,
+              stock: p.stock,
+              image: p.image,
+              unit: p.unit || "item",
+            },
+            wholesaleMode,
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Scan error:", error);
+    }
+  };
+
   return (
     <div className='flex flex-col lg:flex-row h-full gap-4 lg:gap-6 max-w-[1600px] mx-auto overflow-hidden text-slate-900 dark:text-white'>
       {/* Product Grid Section */}
@@ -144,6 +181,32 @@ export const POS: React.FC = () => {
               title={wholesaleMode ? "Switch to Retail" : "Switch to Wholesale"}
             >
               {wholesaleMode ? <Zap size={20} /> : <ZapOff size={20} />}
+            </Button>
+            <Button
+              variant='outline'
+              size='icon'
+              className='h-12 w-12 rounded-xl bg-white dark:bg-dark-surface border-slate-200 dark:border-dark-border text-primary shadow-sm hover:shadow-md transition-all'
+              onClick={() => setIsScannerOpen(true)}
+              title='Scan QR Code'
+            >
+              <Search className='hidden' /> {/* For accessibility */}
+              <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='lucide lucide-qr-code'>
+                <rect width='5' height='5' x='3' y='3' rx='1' />
+                <rect width='5' height='5' x='16' y='3' rx='1' />
+                <rect width='5' height='5' x='3' y='16' rx='1' />
+                <path d='M21 16h-3a2 2 0 0 0-2 2v3' />
+                <path d='M21 21v.01' />
+                <path d='M12 7v3' />
+                <path d='M7 12h3' />
+                <path d='M12 12h.01' />
+                <path d='M16 7h3' />
+                <path d='M21 12h.01' />
+                <path d='M12 16v.01' />
+                <path d='M16 12h.01' />
+                <path d='M21 7v.01' />
+                <path d='M17 21h.01' />
+                <path d='M12 21h.01' />
+              </svg>
             </Button>
           </div>
         </div>
@@ -212,10 +275,16 @@ export const POS: React.FC = () => {
                 <p className='font-medium text-sm text-center'>Your cart is empty.</p>
               </motion.div>
             ) : (
-              <Reorder.Group axis='y' values={cart} onReorder={reorderCart} className='space-y-1'>
+              <Reorder.Group axis='y' values={cart} onReorder={reorderCart} className='space-y-1 text-slate-900 dark:text-white'>
+                {returnExchangeData &&
+                  returnExchangeData.map((item: OrderItem) => (
+                    <div key={`ret-${item.id}`} className='mb-1 text-slate-900 dark:text-white'>
+                      <CartItem {...item} wholesalePrice={0} isReturn onUpdateQty={() => {}} />
+                    </div>
+                  ))}
                 {cart.map((item) => (
-                  <Reorder.Item key={item.productId} value={item} className='cursor-grab active:cursor-grabbing'>
-                    <CartItem {...item} onUpdateQty={(qty) => updateQuantity(item.id, qty)} onUpdatePrice={(newPrice) => updateItemPrice(item.id, newPrice)} />
+                  <Reorder.Item key={item.id} value={item} className='cursor-grab active:cursor-grabbing text-slate-900 dark:text-white'>
+                    <CartItem {...item} wholesalePrice={item.wholesalePrice} onUpdateQty={(qty) => updateQuantity(item.id, qty)} onUpdatePrice={(newPrice) => updateItemPrice(item.id, newPrice)} />
                   </Reorder.Item>
                 ))}
               </Reorder.Group>
@@ -337,8 +406,9 @@ export const POS: React.FC = () => {
                   type='number'
                   className='h-8 text-right font-bold border-none bg-transparent focus-visible:ring-0 px-0'
                   placeholder='Discount'
+                  min={0}
                   value={discountValue || ""}
-                  onChange={(e) => setDiscount(Number(e.target.value), discountType)}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)), discountType)}
                 />
               </div>
 
@@ -364,25 +434,16 @@ export const POS: React.FC = () => {
               </div>
             </div>
 
-            <div className='flex gap-2'>
-              <Button variant='outline' className='flex-1 h-12 gap-2' disabled={cart.length === 0} onClick={() => handleOpenCheckout("cash")}>
-                <Banknote size={16} />
-                <span className='text-[10px] uppercase font-bold tracking-wider'>Cash</span>
-              </Button>
-              <Button className='flex-1 h-12 gap-2' disabled={cart.length === 0} onClick={() => handleOpenCheckout("card")}>
-                <CreditCard size={16} />
-                <span className='text-[10px] uppercase font-bold tracking-wider'>Card</span>
-              </Button>
-            </div>
-
-            <Button className='w-full h-12 bg-primary hover:bg-primary/90' size='lg' disabled={cart.length === 0} onClick={() => handleOpenCheckout()}>
-              Complete Checkout
+            <Button className='w-full h-12 gap-2 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20' disabled={cart.length === 0} onClick={() => handleOpenCheckout(null)}>
+              <ShoppingBag size={18} />
+              <span className='font-bold uppercase tracking-widest text-xs'>Proceed to Checkout</span>
             </Button>
           </div>
         </Card>
       </div>
 
       <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} onSuccess={() => setIsCheckoutOpen(false)} initialPaymentMethod={initialPaymentMethod} />
+      <ScannerModal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScan={handleScan} title='Scan Product SKU' />
     </div>
   );
 };

@@ -87,7 +87,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
               </div>
 
               <div id='printable-receipt' className='bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl overflow-auto max-h-[350px] scrollbar-hide border border-slate-100 dark:border-dark-border'>
-                <ReceiptPreview items={cart} subtotal={subtotal} discount={discount} total={total} customerName={customerName || undefined} paymentMethod={paymentMethod || undefined} />
+                <ReceiptPreview
+                  items={cart}
+                  subtotal={subtotal}
+                  discount={discount}
+                  total={total}
+                  customerName={customerName || undefined}
+                  paymentMethod={paymentMethod || undefined}
+                  returnedItems={usePOSStore.getState().returnExchangeData || undefined}
+                  storeCreditUsed={usePOSStore.getState().storeCredit}
+                />
               </div>
 
               <div className='flex flex-col sm:flex-row gap-3 w-full max-w-sm'>

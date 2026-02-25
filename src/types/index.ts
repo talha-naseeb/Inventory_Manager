@@ -14,6 +14,7 @@ export interface Product {
   image?: string;
   stock: number;
   unit?: string;
+  meters_per_unit?: number;
 }
 
 export interface Brand {
@@ -44,6 +45,7 @@ export interface Order {
   total: number;
   paymentMethod: string;
   storeCreditUsed?: number;
+  returnedItems?: OrderItem[];
   status: string;
   createdAt: string;
 }

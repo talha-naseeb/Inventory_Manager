@@ -1,4 +1,4 @@
-import { Globe, DollarSign, Calendar, Clock } from "lucide-react";
+import { Globe, DollarSign, Clock } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { useThemeStore } from "../../store/useThemeStore";
 
@@ -29,8 +29,8 @@ export const SystemSettings: React.FC = () => {
               <Globe size={20} />
             </div>
             <div>
-              <CardTitle className='text-lg'>Regional Settings</CardTitle>
-              <p className='text-xs text-slate-500'>Manage currency and localization preferences</p>
+              <CardTitle className='text-lg'>Regional & Fabric Settings</CardTitle>
+              <p className='text-xs text-slate-500'>Manage currency, measurements, and suit defaults</p>
             </div>
           </div>
         </CardHeader>
@@ -56,16 +56,37 @@ export const SystemSettings: React.FC = () => {
               <p className='text-[10px] text-slate-400 px-1'>Transaction values and reports will use this currency symbol.</p>
             </div>
 
-            {/* Date Format (Placeholder for future expansion) */}
-            <div className='space-y-2 opacity-60'>
+            {/* Measurement Unit */}
+            <div className='space-y-2'>
               <label className='flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300'>
-                <Calendar size={16} className='text-slate-400' />
-                Date Format
+                <Globe size={16} className='text-slate-400' />
+                Measurement Unit
               </label>
-              <select disabled className='w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-slate-900 text-sm outline-none cursor-not-allowed'>
-                <option>DD/MM/YYYY</option>
-                <option>MM/DD/YYYY</option>
+              <select
+                value={businessDetails.measurementUnit}
+                onChange={(e) => setBusinessDetails({ ...businessDetails, measurementUnit: e.target.value as any })}
+                className='w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer'
+              >
+                <option value='meters'>Meters (m)</option>
+                <option value='yards'>Yards (yd)</option>
               </select>
+              <p className='text-[10px] text-slate-400 px-1'>Primary unit for fabric rolls and length-based sales.</p>
+            </div>
+
+            {/* Standard Suit Length */}
+            <div className='space-y-2'>
+              <label className='flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300'>
+                <Clock size={16} className='text-slate-400' />
+                Default Suit Length ({businessDetails.measurementUnit})
+              </label>
+              <input
+                type='number'
+                step='0.1'
+                value={businessDetails.standardSuitLength}
+                onChange={(e) => setBusinessDetails({ ...businessDetails, standardSuitLength: parseFloat(e.target.value) || 0 })}
+                className='w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all'
+              />
+              <p className='text-[10px] text-slate-400 px-1'>Standard cut length for "Suits" if not specified per product.</p>
             </div>
           </div>
         </CardContent>

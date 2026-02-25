@@ -4,6 +4,7 @@ import type { Product, OrderItem } from "../types";
 interface CartItem extends OrderItem {
   id: string; // unique cart item id (e.g., productId-priceType)
   unit?: string;
+  wholesalePrice: number;
 }
 
 interface POSState {
@@ -26,11 +27,12 @@ interface POSState {
   customerName: string;
   customerId: string | null;
   storeCredit: number;
+  returnExchangeData: OrderItem[] | null;
   setTaxEnabled: (enabled: boolean) => void;
   setDiscount: (value: number, type: "fixed" | "percent") => void;
   setCustomerName: (name: string) => void;
   setCustomerId: (id: string | null, name: string) => void;
-  setStoreCredit: (amount: number) => void;
+  setStoreCredit: (amount: number, returnedItems?: OrderItem[]) => void;
   completeOrder: (paymentMethod: string, staffId: string | null) => Promise<string>;
 }
 
@@ -44,9 +46,9 @@ export const usePOSStore = create<POSState>((set, get) => {
 
     let discount = 0;
     if (discountType === "percent") {
-      discount = subtotal * (discountValue / 100);
+      discount = subtotal * (Math.max(0, discountValue) / 100);
     } else {
-      discount = discountValue;
+      discount = Math.max(0, discountValue);
     }
 
     const subtotalAfterDiscount = Math.max(0, subtotal - discount);
@@ -69,6 +71,7 @@ export const usePOSStore = create<POSState>((set, get) => {
     customerName: "Cash Customer",
     customerId: null,
     storeCredit: 0,
+    returnExchangeData: null,
 
     fetchProducts: async (search = "", category = "All") => {
       try {
@@ -115,9 +118,13 @@ export const usePOSStore = create<POSState>((set, get) => {
 
     setCustomerId: (id: string | null, name: string) => set({ customerId: id, customerName: name }),
 
-    setStoreCredit: (amount: number) => {
+    setStoreCredit: (amount: number, returnedItems?: OrderItem[]) => {
       const { cart, isTaxEnabled, discountValue, discountType } = get();
-      set({ storeCredit: amount, ...calculateTotals(cart, isTaxEnabled, discountValue, discountType, amount) });
+      set({
+        storeCredit: amount,
+        returnExchangeData: returnedItems || null,
+        ...calculateTotals(cart, isTaxEnabled, discountValue, discountType, amount),
+      });
     },
 
     completeOrder: async (paymentMethod: string, staffId: string | null) => {
@@ -126,9 +133,22 @@ export const usePOSStore = create<POSState>((set, get) => {
 
       // 1. Create the Order (with customer_id if linked)
       await dbService.execute(
-        `INSERT INTO orders (id, customer_id, customer_name, subtotal, discount, tax, total, payment_method, store_credit_used, status, staff_id) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [orderId, customerId || null, customerName, subtotal, discount, tax, total, paymentMethod, storeCredit, "completed", staffId],
+        `INSERT INTO orders (id, customer_id, customer_name, subtotal, discount, tax, total, payment_method, store_credit_used, returned_items_json, status, staff_id) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          orderId,
+          customerId || null,
+          customerName,
+          subtotal,
+          discount,
+          tax,
+          total,
+          paymentMethod,
+          storeCredit,
+          get().returnExchangeData ? JSON.stringify(get().returnExchangeData) : null,
+          "completed",
+          staffId,
+        ],
       );
 
       // 2. Insert Order Items & Update Stock
@@ -141,18 +161,19 @@ export const usePOSStore = create<POSState>((set, get) => {
         );
 
         // Fetch current stock
-        const product = await dbService.getOne<{ stock: number }>("SELECT stock FROM products WHERE id = ?", [item.productId]);
+        const product = await dbService.getOne<{ stock: number; meters_per_unit?: number }>("SELECT stock, meters_per_unit FROM products WHERE id = ?", [item.productId]);
         if (product) {
-          const newStock = product.stock - item.quantity;
+          // Calculate total length deduction (Quantity * MetersPerUnit)
+          const deduction = item.quantity * (product.meters_per_unit || 1.0);
+          const newStock = Math.max(0, product.stock - deduction);
 
-          // Update Stock
           await dbService.execute("UPDATE products SET stock = ? WHERE id = ?", [newStock, item.productId]);
 
           // Log Inventory
           await dbService.execute(
             `INSERT INTO inventory_logs (id, product_id, action_type, quantity, previous_stock, current_stock, reason) 
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [crypto.randomUUID(), item.productId, "sale", -item.quantity, product.stock, newStock, `Sale #${orderId.slice(0, 8)}`],
+            [crypto.randomUUID(), item.productId, "sale", -deduction, product.stock, newStock, `Sale #${orderId.slice(0, 8)}`],
           );
         }
       }
@@ -167,6 +188,7 @@ export const usePOSStore = create<POSState>((set, get) => {
         tax,
         total,
         paymentMethod,
+        returnedItems: get().returnExchangeData || undefined,
         createdAt: new Date().toISOString(),
       });
 
@@ -180,7 +202,8 @@ export const usePOSStore = create<POSState>((set, get) => {
 
     setDiscount: (value: number, type: "fixed" | "percent") => {
       const { cart, isTaxEnabled, storeCredit } = get();
-      set({ discountValue: value, discountType: type, ...calculateTotals(cart, isTaxEnabled, value, type, storeCredit) });
+      const clampedValue = Math.max(0, value);
+      set({ discountValue: clampedValue, discountType: type, ...calculateTotals(cart, isTaxEnabled, clampedValue, type, storeCredit) });
     },
 
     addItem: (product: Product, isWholesale = false) => {
@@ -206,6 +229,7 @@ export const usePOSStore = create<POSState>((set, get) => {
             total: priceToUse,
             priceType,
             unit: product.unit || "item",
+            wholesalePrice: product.wholesalePrice,
           },
         ];
       }
@@ -259,6 +283,7 @@ export const usePOSStore = create<POSState>((set, get) => {
         customerName: "Cash Customer",
         customerId: null,
         storeCredit: 0,
+        returnExchangeData: null,
       }),
   };
 });
