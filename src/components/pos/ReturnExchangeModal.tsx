@@ -61,6 +61,9 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen
         "completed",
       ]);
 
+      // Update the original order status to 'returned'
+      await dbService.execute(`UPDATE orders SET status = 'returned' WHERE id = ?`, [order.id]);
+
       if (selectedType === "exchange") {
         setStoreCredit(value, itemsToRecord as any);
       }

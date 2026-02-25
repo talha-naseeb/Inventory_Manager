@@ -342,18 +342,30 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
                 </div>
               </div>
 
-              {formData.unit === "suit" && (
-                <div className='p-4 rounded-2xl bg-primary/5 border border-primary/10'>
-                  <label className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>Meters per Suit</label>
-                  <div className='relative'>
-                    <Input
-                      type='number'
-                      step='0.01'
-                      value={formData.meters_per_unit}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, meters_per_unit: e.target.value })}
-                      className='w-full px-4 py-2.5 rounded-xl border pr-16'
-                    />
-                    <span className='absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500'>meters</span>
+              {(formData.unit === "suit" || formData.unit === "meter" || formData.unit === "yard") && (
+                <div className='p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20'>
+                  <div className='flex items-center gap-2 mb-3'>
+                    <RefreshCcw size={16} className='text-amber-500' />
+                    <label className='text-sm font-bold text-slate-700 dark:text-slate-300'>Set/Unit Length Construction</label>
+                  </div>
+                  <div className='space-y-3'>
+                    <div className='relative'>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        value={formData.meters_per_unit}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, meters_per_unit: e.target.value })}
+                        className='w-full px-4 py-2.5 rounded-xl border pr-20 bg-white dark:bg-dark-bg'
+                      />
+                      <span className='absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-slate-400'>
+                        {formData.unit === "suit" ? "meters / suit" : `meters / ${formData.unit}`}
+                      </span>
+                    </div>
+                    <p className='text-[10px] text-amber-600 dark:text-amber-400 font-medium leading-tight'>
+                      {formData.unit === "suit"
+                        ? "NOTE: In POS, adding 1 Suit will automatically deduct this length from stock."
+                        : "NOTE: This value defines the standard selling length for this product."}
+                    </p>
                   </div>
                   {errors.meters_per_unit && <p className='text-rose-500 text-xs mt-1'>{errors.meters_per_unit}</p>}
                 </div>

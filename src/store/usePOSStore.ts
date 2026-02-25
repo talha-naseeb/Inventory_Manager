@@ -107,6 +107,7 @@ export const usePOSStore = create<POSState>((set, get) => {
             image: p.image,
             description: p.description,
             unit: p.unit || "item",
+            meters_per_unit: p.meters_per_unit,
           })),
         });
       } catch (error) {
@@ -155,9 +156,9 @@ export const usePOSStore = create<POSState>((set, get) => {
       for (const item of cart) {
         const itemId = crypto.randomUUID();
         await dbService.execute(
-          `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, total, price_type) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [itemId, orderId, item.productId, item.name, item.price, item.quantity, item.total, item.priceType],
+          `INSERT INTO order_items (id, order_id, product_id, name, price, quantity, total, price_type, unit) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [itemId, orderId, item.productId, item.name, item.price, item.quantity, item.total, item.priceType, item.unit],
         );
 
         // Fetch current stock
@@ -214,9 +215,13 @@ export const usePOSStore = create<POSState>((set, get) => {
 
       const existingItem = cart.find((item) => item.id === itemId);
 
+      // Default quantity is 1 OR meters_per_unit if it's > 1 (e.g. 4m for fabric)
+      const defaultQty = product.meters_per_unit && product.meters_per_unit > 1 ? product.meters_per_unit : 1;
+
       let newCart;
       if (existingItem) {
-        newCart = cart.map((item) => (item.id === itemId ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price } : item));
+        const nextQty = existingItem.quantity + defaultQty;
+        newCart = cart.map((item) => (item.id === itemId ? { ...item, quantity: nextQty, total: nextQty * item.price } : item));
       } else {
         newCart = [
           ...cart,
@@ -224,9 +229,9 @@ export const usePOSStore = create<POSState>((set, get) => {
             id: itemId,
             productId: product.id,
             name: product.name,
-            quantity: 1,
+            quantity: defaultQty,
             price: priceToUse,
-            total: priceToUse,
+            total: priceToUse * defaultQty,
             priceType,
             unit: product.unit || "item",
             wholesalePrice: product.wholesalePrice,

@@ -91,6 +91,7 @@ function initDb() {
       quantity INTEGER NOT NULL,
       total REAL NOT NULL,
       price_type TEXT DEFAULT 'retail',
+      unit TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (order_id) REFERENCES orders (id) ON DELETE CASCADE,
       FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE SET NULL
@@ -300,6 +301,7 @@ function initDb() {
   ensureColumn("orders", "original_order_id", "TEXT");
   ensureColumn("orders", "staff_id", "TEXT");
   ensureColumn("order_items", "price_type", "TEXT DEFAULT 'retail'");
+  ensureColumn("order_items", "unit", "TEXT");
   ensureColumn("products", "unit", "TEXT DEFAULT 'item'");
   ensureColumn("products", "meters_per_unit", "REAL DEFAULT 1.0");
 

@@ -302,7 +302,9 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
                           <p className='font-bold text-slate-800 dark:text-slate-100'>{item.name}</p>
                           {item.sku && <p className='text-[10px] text-slate-400'>SKU: {item.sku}</p>}
                         </div>
-                        <div className='col-span-2 text-center font-bold text-slate-600 dark:text-slate-400'>x{item.quantity}</div>
+                        <div className='col-span-2 text-center font-bold text-slate-600 dark:text-slate-400'>
+                          {item.quantity} {item.unit === "item" ? "pc" : item.unit}
+                        </div>
                         <div className='col-span-2 text-right text-xs font-medium'>
                           {currency} {item.price.toFixed(2)}
                         </div>

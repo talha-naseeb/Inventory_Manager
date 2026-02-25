@@ -31,6 +31,7 @@ export interface OrderItem {
   price: number;
   quantity: number;
   total: number;
+  unit?: string;
   priceType: "retail" | "wholesale";
 }
 

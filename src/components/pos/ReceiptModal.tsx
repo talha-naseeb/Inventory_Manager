@@ -49,7 +49,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, ord
 
             {/* Receipt Content */}
             <div className='p-8 bg-slate-50 dark:bg-dark-bg/50 max-h-[60vh] overflow-y-auto scrollbar-hide'>
-              <div id='printable-receipt' className='shadow-sm'>
+              <div id='printable-receipt' >
                 <ReceiptPreview
                   items={order.items}
                   subtotal={order.subtotal}
