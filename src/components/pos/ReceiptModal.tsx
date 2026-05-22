@@ -16,7 +16,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, ord
   if (!order) return null;
 
   const handlePrint = () => {
+    // Remove report page size override before printing receipt
+    const style = document.createElement("style");
+    style.id = "receipt-print-override";
+    style.textContent = `@page { size: 80mm auto; margin: 0; }`;
+    document.head.appendChild(style);
     window.print();
+    setTimeout(() => document.getElementById("receipt-print-override")?.remove(), 500);
+  };
+
+  const handleSavePDF = () => {
+    // Print as PDF — user selects "Save as PDF" in the print dialog
+    handlePrint();
   };
 
   return (
@@ -58,15 +69,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, ord
                   customerName={order.customerName}
                   orderNo={order.id}
                   date={format(new Date(order.createdAt), "dd MMM yyyy, hh:mm a")}
+                  returnedItems={order.returnedItems}
+                  storeCreditUsed={order.storeCreditUsed}
+                  exchangeCredit={order.originalOrderId ? order.storeCreditUsed : undefined}
+                  amountDue={order.amountDue}
+                  remainingBalance={order.remainingBalance}
+                  balanceOutcome={order.balanceOutcome}
+                  originalOrderId={order.originalOrderId || undefined}
                 />
               </div>
             </div>
 
             {/* Footer Actions */}
             <div className='p-6 bg-white dark:bg-dark-surface border-t border-slate-100 dark:border-dark-border flex gap-3'>
-              <Button variant='outline' className='flex-1 h-12 font-black uppercase tracking-widest text-[10px] rounded-2xl gap-2'>
+              <Button variant='outline' className='flex-1 h-12 font-black uppercase tracking-widest text-[10px] rounded-2xl gap-2' onClick={handleSavePDF}>
                 <Download size={16} />
-                Export PDF
+                Save PDF
               </Button>
               <Button
                 onClick={handlePrint}

@@ -43,21 +43,54 @@ body {
   min-height: 100vh;
 }
 
+/* ── Receipt Print (80mm Thermal) ── */
 @media print {
   body * {
     visibility: hidden;
   }
+
+  /* Thermal receipt mode */
   #printable-receipt,
   #printable-receipt * {
     visibility: visible;
   }
   #printable-receipt {
-    position: absolute;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 4mm;
+    background: white !important;
+    color: #000 !important;
+    font-size: 10pt !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Report PDF mode */
+  #printable-report,
+  #printable-report * {
+    visibility: visible;
+  }
+  #printable-report {
+    position: fixed;
     left: 0;
     top: 0;
     width: 100%;
     margin: 0;
-    padding: 0;
+    padding: 12mm;
     background: white !important;
+    color: #000 !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  @page :report {
+    size: A4 portrait;
+    margin: 15mm;
   }
 }

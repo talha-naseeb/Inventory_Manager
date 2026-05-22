@@ -29,7 +29,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageCha
     { id: "inventory", icon: <Package size={20} />, label: "Inventory", roles: ["owner", "admin", "manager"] },
     { id: "reports", icon: <BarChart2 size={20} />, label: "Reports", roles: ["owner", "admin", "manager"] },
     { id: "customers", icon: <Users size={20} />, label: "Customers", roles: ["owner", "admin", "manager", "cashier"] },
-    { id: "settings", icon: <Settings size={20} />, label: "Settings", roles: ["owner", "admin"] },
+    { id: "settings", icon: <Settings size={20} />, label: "Settings", roles: ["owner", "admin", "manager"] },
   ];
 
   const menuItems = allMenuItems.filter((item) => item.roles.includes(currentStaff?.role || "cashier"));

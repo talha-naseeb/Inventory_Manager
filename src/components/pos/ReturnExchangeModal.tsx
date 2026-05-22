@@ -10,16 +10,30 @@ interface ReturnExchangeModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: Order;
+  orderReturns?: Array<{ items_json: string }>;
   onComplete: (type: "refund" | "exchange", value: number) => void;
 }
 
-export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen, onClose, order, onComplete }) => {
+export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen, onClose, order, orderReturns = [], onComplete }) => {
   const [selectedType, setSelectedType] = useState<"refund" | "exchange">("exchange");
   const [returnItems, setReturnItems] = useState<Record<string, number>>({});
-  const setStoreCredit = usePOSStore((state) => state.setStoreCredit);
+  const startExchangeDraft = usePOSStore((state) => state.startExchangeDraft);
   const clearCart = usePOSStore((state) => state.clearCart);
   const { businessDetails } = useThemeStore();
   const currency = businessDetails.currency;
+
+  const returnedQuantityByProduct = orderReturns.reduce<Record<string, number>>((acc, ret) => {
+    try {
+      const items = JSON.parse(ret.items_json || "[]");
+      for (const item of items) {
+        const productId = item.productId || item.product_id;
+        if (productId) acc[productId] = (acc[productId] || 0) + Number(item.quantity || 0);
+      }
+    } catch {
+      return acc;
+    }
+    return acc;
+  }, {});
 
   const handleUpdateQty = (productId: string, max: number, delta: number) => {
     const current = returnItems[productId] || 0;
@@ -51,42 +65,32 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen
           quantity: returnItems[item.productId!],
           price: item.price,
           total: returnItems[item.productId!] * item.price,
+          unit: item.unit,
+          priceType: item.priceType || "retail",
         }));
 
-      const { dbService } = await import("../../services/database");
-      await dbService.execute(`INSERT INTO returns (id, order_id, return_value, items_json, status) VALUES (?, ?, ?, ?, ?)`, [
-        crypto.randomUUID(),
-        order.id,
-        value,
-        JSON.stringify(itemsToRecord),
-        "completed",
-      ]);
-
-      // --- NEW: Restore Stock and Log Inventory ---
-      for (const item of itemsToRecord) {
-        // Fetch current stock
-        const product = await dbService.getOne<{ stock: number }>("SELECT stock FROM products WHERE id = ?", [item.productId]);
-        if (product) {
-          const newStock = product.stock + item.quantity;
-          await dbService.execute("UPDATE products SET stock = ? WHERE id = ?", [newStock, item.productId]);
-
-          // Log Inventory
-          await dbService.execute(
-            `INSERT INTO inventory_logs (id, product_id, action_type, quantity, previous_stock, current_stock, reason) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [crypto.randomUUID(), item.productId, "return", item.quantity, product.stock, newStock, `Return from Order #${order.id.slice(0, 8)}`],
-          );
-        }
-      }
-      // ------------------------------------------
-
-      // Update the original order status to 'returned'
-      await dbService.execute(`UPDATE orders SET status = 'returned' WHERE id = ?`, [order.id]);
-
       if (selectedType === "exchange") {
-        clearCart(); // NEW: Clear old items before starting exchange
-        setStoreCredit(value, itemsToRecord as any);
+        clearCart();
+        startExchangeDraft({
+          originalOrderId: order.id,
+          customerId: order.customerId || null,
+          customerName: order.customerName || "Cash Customer",
+          returnedItems: itemsToRecord as any,
+          returnCredit: value,
+        });
+        onComplete(selectedType, value);
+        onClose();
+        return;
       }
+
+      const { dbService } = await import("../../services/database");
+      const result = await dbService.recordReturn({
+        orderId: order.id,
+        value,
+        items: itemsToRecord,
+        status: "completed",
+      });
+      if (!result?.success) throw new Error(result?.error || "Return failed");
 
       onComplete(selectedType, value);
       onClose();
@@ -130,18 +134,23 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen
             <p className='text-[10px] font-black uppercase text-slate-400'>Select Items</p>
             {order.items.map((item) => {
               if (!item.productId) return null;
+              const alreadyReturned = returnedQuantityByProduct[item.productId] || 0;
+              const remainingQty = Math.max(0, item.quantity - alreadyReturned);
+              if (remainingQty <= 0) return null;
               return (
                 <div key={item.productId} className='p-4 rounded-2xl border flex items-center justify-between bg-slate-50'>
                   <div>
                     <p className='text-sm font-bold'>{item.name}</p>
-                    <p className='text-xs text-slate-500'>{item.quantity} purchased</p>
+                    <p className='text-xs text-slate-500'>
+                      {remainingQty} of {item.quantity} returnable
+                    </p>
                   </div>
                   <div className='flex items-center gap-3 bg-white p-1 rounded-xl border'>
-                    <button onClick={() => handleUpdateQty(item.productId!, item.quantity, -1)} className='p-1 hover:bg-slate-50'>
+                    <button onClick={() => handleUpdateQty(item.productId!, remainingQty, -1)} className='p-1 hover:bg-slate-50'>
                       <Minus size={14} />
                     </button>
                     <span className='w-8 text-center font-bold'>{returnItems[item.productId!] || 0}</span>
-                    <button onClick={() => handleUpdateQty(item.productId!, item.quantity, 1)} className='p-1 hover:bg-slate-50'>
+                    <button onClick={() => handleUpdateQty(item.productId!, remainingQty, 1)} className='p-1 hover:bg-slate-50'>
                       <Plus size={14} />
                     </button>
                   </div>
@@ -159,7 +168,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({ isOpen
             </p>
           </div>
           <Button onClick={handleComplete} disabled={returnTotal <= 0} className='bg-primary text-white font-bold h-12 px-8'>
-            Complete {selectedType === "exchange" ? "Exchange" : "Refund"}
+            {selectedType === "exchange" ? "Continue To POS" : "Complete Refund"}
           </Button>
         </div>
       </div>

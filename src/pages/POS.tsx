@@ -12,6 +12,7 @@ import { usePOSStore } from "../store/usePOSStore";
 import { useThemeStore } from "../store/useThemeStore";
 import { cn } from "../lib/utils";
 import { ScannerModal } from "../components/ui/ScannerModal";
+import { useBusinessProfile } from "../hooks/useBusinessProfile";
 
 export const POS: React.FC = () => {
   const [search, setSearch] = useState("");
@@ -46,11 +47,20 @@ export const POS: React.FC = () => {
     customerId,
     setCustomerId,
     storeCredit,
-    setStoreCredit,
     returnExchangeData,
+    exchangeDraft,
+    getExchangeTotals,
+    cancelExchangeDraft,
   } = usePOSStore();
   const { businessDetails } = useThemeStore();
+  const profile = useBusinessProfile();
   const currency = businessDetails.currency;
+  const unitFor = (item: OrderItem) => {
+    const normalizedUnit = item.unit?.trim();
+    return !normalizedUnit || normalizedUnit === "item" || normalizedUnit === profile.stockUnit.singular || normalizedUnit === profile.stockUnit.plural || normalizedUnit === profile.stockUnit.abbr
+      ? profile.stockUnitAbbr
+      : normalizedUnit;
+  };
 
   useEffect(() => {
     fetchProducts(search, selectedCategory);
@@ -106,6 +116,7 @@ export const POS: React.FC = () => {
   };
 
   const brands = ["All", ...new Set(products.map((p) => p.brand).filter(Boolean))];
+  const exchangeTotals = getExchangeTotals();
 
   const handleOpenCheckout = (method: "cash" | "card" | null = null) => {
     // If manual name typed and save checkbox on, create customer first
@@ -164,7 +175,7 @@ export const POS: React.FC = () => {
   };
 
   return (
-    <div className='flex flex-col lg:flex-row h-full gap-4 lg:gap-6 max-w-[1600px] mx-auto overflow-hidden text-slate-900 dark:text-white'>
+    <div className='flex flex-col lg:flex-row h-full gap-4 lg:gap-6 max-w-400 mx-auto overflow-hidden text-slate-900 dark:text-white'>
       {/* Product Grid Section */}
       <div className='flex-1 flex flex-col min-w-0 min-h-0 h-[45vh] lg:h-full'>
         <div className='mb-3 flex flex-col sm:flex-row gap-3 items-center'>
@@ -234,7 +245,7 @@ export const POS: React.FC = () => {
       </div>
 
       {/* Cart Sidebar Section */}
-      <div className='w-full lg:w-[450px] xl:w-[550px] flex flex-col h-[55vh] lg:h-full shrink-0 border-t lg:border-l border-slate-100 dark:border-dark-border lg:pl-6'>
+      <div className='w-full lg:w-112.5 xl:w-137.5 flex flex-col h-[55vh] lg:h-full shrink-0 border-t lg:border-l border-slate-100 dark:border-dark-border lg:pl-6'>
         <Card className='flex-1 flex flex-col overflow-hidden border-none shadow-xl dark:shadow-none bg-white dark:bg-dark-surface'>
           <CardHeader className='flex flex-row items-center justify-between py-3 px-4 border-b border-slate-50 dark:border-dark-border'>
             <div className='flex items-center gap-2'>
@@ -247,22 +258,45 @@ export const POS: React.FC = () => {
             </Button>
           </CardHeader>
 
-          {storeCredit > 0 && (
-            <div className='mx-4 mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between animate-in slide-in-from-top-2'>
-              <div className='flex items-center gap-3'>
+          {exchangeDraft && (
+            <div className='mx-4 mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-3 animate-in slide-in-from-top-2'>
+              <div className='flex items-center justify-between gap-3'>
+                <div className='flex items-center gap-3'>
                 <div className='p-2 bg-amber-500 text-white rounded-lg'>
                   <ArrowRightLeft size={16} />
                 </div>
                 <div>
                   <p className='text-[10px] font-black uppercase text-amber-600 tracking-wider'>Exchange Active</p>
-                  <p className='text-xs font-bold text-amber-700'>
-                    Credit: {currency} {storeCredit.toFixed(2)}
-                  </p>
+                    <p className='text-xs font-bold text-amber-700'>Original Order #{exchangeDraft.originalOrderId.slice(0, 8)}</p>
+                  </div>
+                </div>
+                <Button variant='ghost' size='sm' onClick={cancelExchangeDraft} className='text-amber-700 hover:bg-amber-500/20'>
+                  Cancel
+                </Button>
+              </div>
+
+              <div className='grid grid-cols-2 gap-2 text-xs'>
+                <div className='font-bold text-slate-600 dark:text-slate-300'>
+                  Credit: {currency} {exchangeTotals.returnCredit.toFixed(2)}
+                </div>
+                <div className='font-bold text-slate-600 dark:text-slate-300'>
+                  New Total: {currency} {exchangeTotals.newItemsTotal.toFixed(2)}
+                </div>
+                <div className='font-bold text-emerald-600'>
+                  Amount Due: {currency} {exchangeTotals.amountDue.toFixed(2)}
+                </div>
+                <div className='font-bold text-amber-600'>
+                  Remaining: {currency} {exchangeTotals.remainingBalance.toFixed(2)}
                 </div>
               </div>
-              <Button variant='ghost' size='icon' onClick={() => setStoreCredit(0)} className='h-8 w-8 rounded-full hover:bg-amber-500/20 text-amber-600'>
-                <X size={14} />
-              </Button>
+              <div className='space-y-1 border-t border-amber-500/10 pt-2'>
+                {exchangeDraft.returnedItems.map((item) => (
+                  <div key={item.id} className='flex justify-between text-[11px] font-semibold text-amber-700'>
+                    <span className='truncate'>{item.name}</span>
+                    <span>{`${item.quantity}${unitFor(item)} x ${currency} ${item.price.toFixed(2)}`}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

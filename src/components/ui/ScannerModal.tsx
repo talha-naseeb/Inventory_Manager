@@ -55,7 +55,7 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({ isOpen, onClose, onS
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className='fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6'>
+        <div className='fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6'>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className='absolute inset-0 bg-slate-900/80 backdrop-blur-md' />
 
           <motion.div
@@ -81,7 +81,7 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({ isOpen, onClose, onS
             </div>
 
             {/* Scanner Container */}
-            <div className='p-6 h-[400px] flex items-center justify-center bg-slate-50 dark:bg-dark-bg/20'>
+            <div className='p-6 h-100 flex items-center justify-center bg-slate-50 dark:bg-dark-bg/20'>
               <div id='qr-reader' className='w-full border-none rounded-2xl overflow-hidden shadow-inner' />
             </div>
 

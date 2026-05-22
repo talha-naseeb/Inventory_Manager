@@ -5,6 +5,7 @@ import type { OrderItem } from "../../types";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
 import QRCode from "react-qr-code";
+import { useBusinessProfile } from "../../hooks/useBusinessProfile";
 
 interface ReceiptPreviewProps {
   items: OrderItem[];
@@ -17,6 +18,11 @@ interface ReceiptPreviewProps {
   date?: string;
   returnedItems?: OrderItem[];
   storeCreditUsed?: number;
+  exchangeCredit?: number;
+  amountDue?: number;
+  remainingBalance?: number;
+  balanceOutcome?: string;
+  originalOrderId?: string;
 }
 
 export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
@@ -30,10 +36,22 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
   date: providedDate,
   returnedItems,
   storeCreditUsed,
+  exchangeCredit,
+  amountDue,
+  remainingBalance,
+  balanceOutcome,
+  originalOrderId,
 }) => {
   const { businessDetails } = useThemeStore();
+  const profile = useBusinessProfile();
   const date = providedDate || format(new Date(), "dd MMM yyyy, hh:mm a");
   const orderNo = providedOrderNo ? (providedOrderNo.length > 20 ? providedOrderNo.slice(0, 8) : providedOrderNo) : Math.floor(100000 + Math.random() * 900000).toString();
+  const unitFor = (item: OrderItem) => {
+    const normalizedUnit = item.unit?.trim();
+    return !normalizedUnit || normalizedUnit === "item" || normalizedUnit === profile.stockUnit.singular || normalizedUnit === profile.stockUnit.plural || normalizedUnit === profile.stockUnit.abbr
+      ? profile.stockUnitAbbr
+      : normalizedUnit;
+  };
 
   return (
     <div id='printable-receipt' className='bg-white text-slate-900 p-8 max-w-[400px] mx-auto shadow-2xl border border-slate-100 font-mono text-[11px] leading-relaxed'>
@@ -75,6 +93,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
       <div className='space-y-1.5 mb-4'>
         {[
           { label: "ORDER NO", value: `#${orderNo}` },
+          originalOrderId ? { label: "ORIGINAL", value: `#${originalOrderId.slice(0, 8)}` } : null,
           { label: "DATE", value: date },
           paymentMethod ? { label: "PAYMENT", value: paymentMethod.toUpperCase() } : null,
           customerName ? { label: "CUSTOMER", value: customerName.toUpperCase() } : null,
@@ -106,9 +125,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
               </span>
             </div>
             <div className='flex justify-between items-center text-[9px] text-slate-400 font-bold uppercase italic pl-1'>
-              <span>
-                {businessDetails.currency} {item.price.toFixed(2)} x {item.quantity}
-              </span>
+              <span>{`${item.quantity}${unitFor(item)} @ ${businessDetails.currency} ${item.price.toFixed(2)}`}</span>
             </div>
           </div>
         ))}
@@ -125,9 +142,7 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             {returnedItems.map((item, idx) => (
               <div key={idx} className='flex justify-between items-baseline gap-4 opacity-70'>
                 <span className='font-bold text-slate-700 leading-tight uppercase'>{item.name}</span>
-                <span className='font-bold text-slate-700 whitespace-nowrap text-[9px]'>
-                  ({businessDetails.currency} {item.price.toFixed(2)} x {item.quantity})
-                </span>
+                <span className='font-bold text-slate-700 whitespace-nowrap text-[9px]'>{`(${item.quantity}${unitFor(item)} @ ${businessDetails.currency} ${item.price.toFixed(2)})`}</span>
                 <span className='font-bold text-slate-900 whitespace-nowrap'>
                   - {businessDetails.currency} {item.total.toFixed(2)}
                 </span>
@@ -153,11 +168,35 @@ export const ReceiptPreview: React.FC<ReceiptPreviewProps> = ({
             </span>
           </div>
         )}
-        {storeCreditUsed !== undefined && storeCreditUsed > 0 && (
+        {exchangeCredit !== undefined && exchangeCredit > 0 && (
+          <div className='flex justify-between items-center text-amber-600 font-bold uppercase text-[10px]'>
+            <span>Exchange Credit</span>
+            <span>
+              -{businessDetails.currency} {exchangeCredit.toFixed(2)}
+            </span>
+          </div>
+        )}
+        {exchangeCredit === undefined && storeCreditUsed !== undefined && storeCreditUsed > 0 && (
           <div className='flex justify-between items-center text-amber-600 font-bold uppercase text-[10px]'>
             <span>Store Credit</span>
             <span>
               -{businessDetails.currency} {storeCreditUsed.toFixed(2)}
+            </span>
+          </div>
+        )}
+        {amountDue !== undefined && amountDue > 0 && (
+          <div className='flex justify-between items-center text-slate-500 font-bold uppercase text-[10px]'>
+            <span>Extra Paid</span>
+            <span>
+              {businessDetails.currency} {amountDue.toFixed(2)}
+            </span>
+          </div>
+        )}
+        {remainingBalance !== undefined && remainingBalance > 0 && (
+          <div className='flex justify-between items-center text-emerald-600 font-bold uppercase text-[10px]'>
+            <span>{balanceOutcome === "store_credit" ? "Store Credit" : "Cash Refund"}</span>
+            <span>
+              {businessDetails.currency} {remainingBalance.toFixed(2)}
             </span>
           </div>
         )}

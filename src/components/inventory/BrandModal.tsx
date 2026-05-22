@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { X, Tag } from "lucide-react";
 import { Button } from "../ui/Button";
 import { dbService } from "../../services/database";
 import { cn } from "../../lib/utils";
+import { useBusinessProfile } from "../../hooks/useBusinessProfile";
 
 interface BrandModalProps {
   isOpen: boolean;
@@ -12,6 +13,12 @@ interface BrandModalProps {
 }
 
 export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave, brand }) => {
+  const profile = useBusinessProfile();
+  const fieldId = useId();
+  const categoryLabel = profile.categoryNoun;
+  const categoryLower = categoryLabel.toLowerCase();
+  const nameInputId = `${fieldId}-category-name`;
+  const descriptionInputId = `${fieldId}-category-description`;
   const [formData, setFormData] = useState({
     name: brand?.name || "",
     description: brand?.description || "",
@@ -23,7 +30,7 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
     const newErrors: Record<string, string> = {};
 
     if (!formData.name.trim() || formData.name.length < 2) {
-      newErrors.name = "Brand name must be at least 2 characters";
+      newErrors.name = `${categoryLabel} name must be at least 2 characters`;
     }
 
     setErrors(newErrors);
@@ -43,11 +50,10 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
 
       if (brand) {
         // Update existing brand
-        await dbService.execute("UPDATE brands SET name = ?, description = ? WHERE id = ?", [brandData.name, brandData.description, brand.id]);
+        await dbService.updateBrand(brand.id, brandData);
       } else {
         // Create new brand
-        const brandId = crypto.randomUUID();
-        await dbService.execute("INSERT INTO brands (id, name, description) VALUES (?, ?, ?)", [brandId, brandData.name, brandData.description]);
+        await dbService.createBrand(brandData.name, brandData.description);
       }
 
       onSave();
@@ -56,9 +62,9 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
     } catch (error: any) {
       console.error("Failed to save brand:", error);
       if (error.message?.includes("UNIQUE constraint failed")) {
-        setErrors({ name: "Brand name already exists" });
+        setErrors({ name: `${categoryLabel} name already exists` });
       } else {
-        setErrors({ submit: "Failed to save brand. Please try again." });
+        setErrors({ submit: `Failed to save ${categoryLower}. Please try again.` });
       }
     } finally {
       setLoading(false);
@@ -74,21 +80,22 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
         <div className='sticky top-0 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border p-6 flex items-center justify-between'>
           <h2 className='text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2'>
             <Tag size={24} className='text-primary' />
-            {brand ? "Edit Brand" : "Add New Brand"}
+            {brand ? `Edit ${categoryLabel}` : `Add New ${categoryLabel}`}
           </h2>
-          <button onClick={onClose} className='text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors'>
+          <button type='button' onClick={onClose} className='text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors' aria-label={`Close ${categoryLower} modal`}>
             <X size={24} />
           </button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className='p-6 space-y-4'>
-          {/* Brand Name */}
+          {/* Category Name */}
           <div>
-            <label className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>
-              Brand Name <span className='text-rose-500'>*</span>
+            <label htmlFor={nameInputId} className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>
+              {categoryLabel} Name <span className='text-rose-500'>*</span>
             </label>
             <input
+              id={nameInputId}
               type='text'
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -96,7 +103,7 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
                 "w-full px-4 py-2.5 rounded-xl border bg-white dark:bg-dark-bg text-slate-900 dark:text-white transition-colors",
                 errors.name ? "border-rose-500" : "border-slate-200 dark:border-dark-border focus:border-primary",
               )}
-              placeholder='e.g., Nike, Adidas, Zara'
+              placeholder={profile.placeholders.category}
               autoFocus
             />
             {errors.name && <p className='text-rose-500 text-xs mt-1'>{errors.name}</p>}
@@ -104,13 +111,14 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
 
           {/* Description */}
           <div>
-            <label className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>Description</label>
+            <label htmlFor={descriptionInputId} className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>Description</label>
             <textarea
+              id={descriptionInputId}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={3}
               className='w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-bg text-slate-900 dark:text-white focus:border-primary transition-colors resize-none'
-              placeholder='Optional brand description'
+              placeholder={`Optional ${categoryLower} description`}
             />
           </div>
 
@@ -126,7 +134,7 @@ export const BrandModal: React.FC<BrandModalProps> = ({ isOpen, onClose, onSave,
               Cancel
             </Button>
             <Button type='submit' disabled={loading} className='flex-1'>
-              {loading ? "Saving..." : brand ? "Update Brand" : "Add Brand"}
+              {loading ? "Saving..." : brand ? `Update ${categoryLabel}` : `Add ${categoryLabel}`}
             </Button>
           </div>
         </form>

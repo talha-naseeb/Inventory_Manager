@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { dbService } from "../../services/database";
 import { cn } from "../../lib/utils";
+import { useAuthStore } from "../../store/useAuthStore";
 
 type ActionType = "inventory" | "sales" | "customers" | "full";
 
@@ -11,6 +12,7 @@ export const DatabaseSettings: React.FC = () => {
   const [confirmingAction, setConfirmingAction] = useState<ActionType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const currentStaff = useAuthStore((state) => state.currentStaff);
 
   const handleAction = async (type: ActionType) => {
     setIsProcessing(true);
@@ -19,16 +21,16 @@ export const DatabaseSettings: React.FC = () => {
       let result;
       switch (type) {
         case "inventory":
-          result = await dbService.clearInventory();
+          result = await dbService.clearInventory(currentStaff?.id);
           break;
         case "sales":
-          result = await dbService.clearSales();
+          result = await dbService.clearSales(currentStaff?.id);
           break;
         case "customers":
-          result = await dbService.clearCustomers();
+          result = await dbService.clearCustomers(currentStaff?.id);
           break;
         case "full":
-          result = await dbService.factoryReset();
+          result = await dbService.factoryReset(currentStaff?.id);
           break;
       }
 
@@ -50,7 +52,7 @@ export const DatabaseSettings: React.FC = () => {
     {
       id: "inventory" as ActionType,
       title: "Clear Inventory",
-      desc: "Deletes all products, brands, and categories. This cannot be undone.",
+      desc: "Deletes products, brands, stock logs, and rolls only. Sales, customers, settings, and sync state are kept.",
       icon: <Layers size={20} className='text-amber-600' />,
       btnText: "Delete Products",
       variant: "outline" as const,
@@ -58,7 +60,7 @@ export const DatabaseSettings: React.FC = () => {
     {
       id: "sales" as ActionType,
       title: "Clear Sales History",
-      desc: "Deletes all past orders, items, and returns. Inventory stock might need re-sync.",
+      desc: "Deletes past orders, order items, and returns only. Inventory stock is not reset.",
       icon: <ShoppingBag size={20} className='text-rose-600' />,
       btnText: "Delete Sales",
       variant: "outline" as const,

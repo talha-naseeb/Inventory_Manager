@@ -1,13 +1,17 @@
 const { db } = require("./db.cjs");
 const crypto = require("crypto");
 
+function isProductionLicenseMode() {
+  return process.env.NODE_ENV === "production" || process.env.INVENTORIMAN_LICENSE_MODE === "production";
+}
+
 /**
  * Initialize the license table if it doesn't exist.
- * Called from db.cjs initDb().
+ * Uses the async worker-backed DB proxy.
  */
-function initLicenseTable() {
+async function initLicenseTable() {
   try {
-    db.exec(`
+    await db.run(`
       CREATE TABLE IF NOT EXISTS license (
         id TEXT PRIMARY KEY,
         key TEXT UNIQUE NOT NULL,
@@ -19,15 +23,15 @@ function initLicenseTable() {
       )
     `);
 
-    // Seed a default perpetual license if none exists
-    const existing = db.prepare("SELECT COUNT(*) as count FROM license").get();
-    if (existing.count === 0) {
-      db.prepare(
+    // Seed a development-only demo license if none exists.
+    const existing = await db.get("SELECT COUNT(*) as count FROM license");
+    if (existing.count === 0 && !isProductionLicenseMode()) {
+      await db.run(
         `
         INSERT INTO license (id, key, plan, activated_at, expires_at, grace_until, status)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `,
-      ).run(
+        [
         crypto.randomUUID(),
         "DEMO-0000-0000-0000",
         "demo",
@@ -35,6 +39,7 @@ function initLicenseTable() {
         null, // null = perpetual / no expiry
         null,
         "active",
+        ],
       );
     }
   } catch (err) {
@@ -46,9 +51,9 @@ function initLicenseTable() {
  * Get the current license status.
  * Returns: { status: 'active' | 'grace' | 'expired', license, daysLeft }
  */
-function getLicenseStatus() {
+async function getLicenseStatus() {
   try {
-    const license = db.prepare("SELECT * FROM license LIMIT 1").get();
+    const license = await db.get("SELECT * FROM license LIMIT 1");
     if (!license) return { status: "expired", license: null, daysLeft: 0 };
 
     const now = new Date();
@@ -74,7 +79,10 @@ function getLicenseStatus() {
     return { status: "expired", license, daysLeft: 0 };
   } catch (err) {
     console.error("License check error:", err);
-    return { status: "active", license: null, daysLeft: null }; // fail open
+    if (isProductionLicenseMode()) {
+      return { status: "expired", license: null, daysLeft: 0 };
+    }
+    return { status: "active", license: null, daysLeft: null }; // Development fail-open only.
   }
 }
 
@@ -83,7 +91,7 @@ function getLicenseStatus() {
  * For now: validates format and sets a 1-year expiry.
  * In production: call your license server here.
  */
-function activateLicense(key) {
+async function activateLicense(key) {
   try {
     if (!key || key.trim().length < 8) {
       return { success: false, error: "Invalid license key format." };
@@ -97,7 +105,7 @@ function activateLicense(key) {
     graceUntil.setDate(graceUntil.getDate() + 7); // 7-day grace period
 
     // Update existing license record
-    db.prepare(
+    await db.run(
       `
       UPDATE license SET
         key = ?,
@@ -107,7 +115,8 @@ function activateLicense(key) {
         grace_until = ?,
         status = 'active'
     `,
-    ).run(trimmedKey, now.toISOString(), expiresAt.toISOString(), graceUntil.toISOString());
+      [trimmedKey, now.toISOString(), expiresAt.toISOString(), graceUntil.toISOString()],
+    );
 
     return { success: true, expiresAt: expiresAt.toISOString() };
   } catch (err) {
@@ -116,4 +125,4 @@ function activateLicense(key) {
   }
 }
 
-module.exports = { initLicenseTable, getLicenseStatus, activateLicense };
+module.exports = { initLicenseTable, getLicenseStatus, activateLicense, isProductionLicenseMode };

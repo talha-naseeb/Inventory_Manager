@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuditLogs } from "../components/settings/AuditLogs";
-import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key, Database as DatabaseSettingsIcon } from "lucide-react";
+import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key, Database as DatabaseSettingsIcon, Cloud } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ThemeSettings } from "../components/settings/ThemeSettings";
 import { BusinessSettings } from "../components/settings/BusinessSettings";
@@ -9,31 +9,46 @@ import { StaffSettings } from "../components/settings/StaffSettings";
 import { SystemSettings } from "../components/settings/SystemSettings";
 import { LicenseSettings } from "../components/settings/LicenseSettings";
 import { DatabaseSettings } from "../components/settings/DatabaseSettings";
+import { CloudSyncSettings } from "../components/settings/CloudSyncSettings";
+import { usePermissions } from "../hooks/usePermissions";
 
-type TabType = "theme" | "business" | "system" | "staff" | "license" | "logs" | "database";
+type TabType = "theme" | "business" | "system" | "staff" | "license" | "logs" | "database" | "cloud";
 
 interface SettingsProps {
   initialTab?: string;
 }
 
+const allTabs: Array<{ id: TabType; label: string; icon: React.ReactNode; adminOnly: boolean }> = [
+  { id: "theme", label: "Theme & Style", icon: <Palette size={18} />, adminOnly: false },
+  { id: "business", label: "Shop Details", icon: <Store size={18} />, adminOnly: false },
+  { id: "system", label: "System Preferences", icon: <Sliders size={18} />, adminOnly: false },
+  { id: "staff", label: "Staff & Roles", icon: <Users size={18} />, adminOnly: true },
+  { id: "cloud", label: "Cloud Sync", icon: <Cloud size={18} />, adminOnly: true },
+  { id: "database", label: "Database", icon: <DatabaseSettingsIcon size={18} />, adminOnly: true },
+  { id: "license", label: "License & System", icon: <Key size={18} />, adminOnly: true },
+  { id: "logs", label: "Audit Logs", icon: <FileText size={18} />, adminOnly: true },
+];
+
+const resolvePermittedTab = (tab: string | undefined, canAccessAdminTabs: boolean): TabType => {
+  const requestedTab = allTabs.find((item) => item.id === tab);
+
+  if (requestedTab && (!requestedTab.adminOnly || canAccessAdminTabs)) {
+    return requestedTab.id;
+  }
+
+  return "theme";
+};
+
 export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
-  const [activeTab, setActiveTab] = useState<TabType>((initialTab as TabType) || "theme");
+  const { isAdmin, isOwner } = usePermissions();
+  const canAccessAdminTabs = isAdmin || isOwner;
+  const tabs = allTabs.filter((tab) => !tab.adminOnly || canAccessAdminTabs);
+  const [activeTab, setActiveTab] = useState<TabType>(() => resolvePermittedTab(initialTab, canAccessAdminTabs));
+  const safeActiveTab = resolvePermittedTab(activeTab, canAccessAdminTabs);
 
   useEffect(() => {
-    if (initialTab) {
-      setActiveTab(initialTab as TabType);
-    }
-  }, [initialTab]);
-
-  const tabs = [
-    { id: "theme", label: "Theme & Style", icon: <Palette size={18} /> },
-    { id: "business", label: "Shop Details", icon: <Store size={18} /> },
-    { id: "system", label: "System Preferences", icon: <Sliders size={18} /> },
-    { id: "staff", label: "Staff & Roles", icon: <Users size={18} /> },
-    { id: "database", label: "Database", icon: <DatabaseSettingsIcon size={18} /> },
-    { id: "license", label: "License & System", icon: <Key size={18} /> },
-    { id: "logs", label: "Audit Logs", icon: <FileText size={18} /> },
-  ];
+    setActiveTab(resolvePermittedTab(initialTab, canAccessAdminTabs));
+  }, [canAccessAdminTabs, initialTab]);
 
   return (
     <div className='max-w-5xl mx-auto space-y-8'>
@@ -52,10 +67,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as TabType)}
+            onClick={() => setActiveTab(resolvePermittedTab(tab.id, canAccessAdminTabs))}
             className={cn(
               "flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all",
-              activeTab === tab.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800",
+              safeActiveTab === tab.id ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800",
             )}
           >
             {tab.icon}
@@ -66,14 +81,15 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
 
       <div className='min-h-[400px]'>
         <AnimatePresence mode='wait'>
-          <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-            {activeTab === "theme" && <ThemeSettings />}
-            {activeTab === "business" && <BusinessSettings />}
-            {activeTab === "system" && <SystemSettings />}
-            {activeTab === "staff" && <StaffSettings />}
-            {activeTab === "database" && <DatabaseSettings />}
-            {activeTab === "license" && <LicenseSettings />}
-            {activeTab === "logs" && <AuditLogs />}
+          <motion.div key={safeActiveTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            {safeActiveTab === "theme" && <ThemeSettings />}
+            {safeActiveTab === "business" && <BusinessSettings />}
+            {safeActiveTab === "system" && <SystemSettings />}
+            {safeActiveTab === "staff" && <StaffSettings />}
+            {safeActiveTab === "cloud" && <CloudSyncSettings />}
+            {safeActiveTab === "database" && <DatabaseSettings />}
+            {safeActiveTab === "license" && <LicenseSettings />}
+            {safeActiveTab === "logs" && <AuditLogs />}
           </motion.div>
         </AnimatePresence>
       </div>

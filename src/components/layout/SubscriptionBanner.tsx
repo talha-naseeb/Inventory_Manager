@@ -36,7 +36,7 @@ export const SubscriptionBanner: React.FC = () => {
   // Full-screen expired overlay
   if (!isGrace) {
     return (
-      <div className='fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center'>
+      <div className='fixed inset-0 z-100 bg-black/80 backdrop-blur-sm flex items-center justify-center'>
         <div className='bg-white dark:bg-dark-surface rounded-3xl p-10 max-w-md w-full text-center shadow-2xl mx-4'>
           <div className='w-20 h-20 bg-rose-100 dark:bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-6'>
             <XCircle size={40} className='text-rose-600' />

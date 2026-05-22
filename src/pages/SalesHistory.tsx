@@ -11,6 +11,8 @@ import { ScannerModal } from "../components/ui/ScannerModal";
 import { DateRangeFilter } from "../components/dashboard/DateRangeFilter";
 import { ReturnExchangeModal } from "../components/pos/ReturnExchangeModal";
 import { ReceiptModal } from "../components/pos/ReceiptModal";
+import { usePermissions } from "../hooks/usePermissions";
+import { useBusinessProfile } from "../hooks/useBusinessProfile";
 import type { Range } from "react-date-range";
 import type { Order } from "../types";
 
@@ -20,7 +22,15 @@ interface SalesHistoryProps {
 
 export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
   const { businessDetails } = useThemeStore();
+  const profile = useBusinessProfile();
+  const { can } = usePermissions();
   const currency = businessDetails.currency;
+  const unitFor = (item: { unit?: string | null }) => {
+    const normalizedUnit = item.unit?.trim();
+    return !normalizedUnit || normalizedUnit === "item" || normalizedUnit === profile.stockUnit.singular || normalizedUnit === profile.stockUnit.plural || normalizedUnit === profile.stockUnit.abbr
+      ? profile.stockUnitAbbr
+      : normalizedUnit;
+  };
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,6 +124,11 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
   };
 
   const handleReturnComplete = (type: "refund" | "exchange", value: number) => {
+    if (type === "exchange") {
+      onPageChange("pos");
+      return;
+    }
+
     if (selectedOrderDetails) {
       // Optimistic update
       setSelectedOrderDetails({ ...selectedOrderDetails, status: "returned" });
@@ -122,16 +137,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
       setOrders((prev) => prev.map((o) => (o.id === selectedOrderDetails.id ? { ...o, status: "returned" } : o)));
     }
 
-    if (type === "exchange") {
-      onPageChange("pos");
-    } else {
-      alert(`Success! Processed refund of value ${currency} ${value.toFixed(2)}`);
-      // Refresh to ensure everything is synced
-      if (selectedOrderDetails) {
-        fetchOrderDetails(selectedOrderDetails.id);
-      }
-      loadOrders();
+    alert(`Success! Processed refund of value ${currency} ${value.toFixed(2)}`);
+    // Refresh to ensure everything is synced
+    if (selectedOrderDetails) {
+      fetchOrderDetails(selectedOrderDetails.id);
     }
+    loadOrders();
   };
 
   return (
@@ -202,12 +213,12 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
                 )}
               >
                 <div className='flex justify-between items-start mb-2'>
-                  <span className='font-bold text-sm text-slate-900 dark:text-white truncate max-w-[120px]'>#{order.id.slice(0, 8)}</span>
+                  <span className='font-bold text-sm text-slate-900 dark:text-white truncate max-w-30'>#{order.id.slice(0, 8)}</span>
                   <span className='text-[10px] font-bold text-slate-400'>{format(new Date(order.createdAt), "dd MMM, hh:mm a")}</span>
                 </div>
                 <div className='flex justify-between items-end'>
                   <div className='flex flex-col'>
-                    <span className='text-xs font-medium text-slate-600 dark:text-slate-300 truncate max-w-[120px]'>{order.customerName || "Walking Customer"}</span>
+                    <span className='text-xs font-medium text-slate-600 dark:text-slate-300 truncate max-w-30'>{order.customerName || "Walking Customer"}</span>
                     <span className={cn("text-[9px] font-black uppercase mt-1", order.status === "completed" ? "text-emerald-500" : order.status === "returned" ? "text-danger" : "text-amber-500")}>
                       {order.status}
                     </span>
@@ -319,15 +330,17 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
                             {returnedQty > 0 && (
                               <div className='flex items-center gap-1 mt-1'>
                                 <RotateCcw size={10} className='text-rose-500' />
-                                <span className='text-[9px] font-bold text-rose-500 uppercase'>{returnedQty} returned</span>
+                                <span className='text-[9px] font-bold text-rose-500 uppercase'>
+                                  {returnedQty} {unitFor(item)} returned
+                                </span>
                               </div>
                             )}
                           </div>
                           <div className='col-span-2 text-center text-xs font-bold text-slate-400 line-through'>
-                            {item.quantity} {item.unit === "item" ? "pc" : item.unit}
+                            {item.quantity} {unitFor(item)}
                           </div>
                           <div className='col-span-2 text-right font-bold text-slate-900 dark:text-white'>
-                            {netQty} {item.unit === "item" ? "pc" : item.unit}
+                            {netQty} {unitFor(item)}
                           </div>
                           <div className='col-span-2 text-right font-black text-slate-900 dark:text-white'>
                             {currency} {(netQty * item.price).toFixed(2)}
@@ -358,9 +371,16 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
                         <div className='space-y-1'>
                           {JSON.parse(ret.items_json).map((item: any, idx: number) => (
                             <p key={idx} className='text-xs font-medium text-slate-500'>
-                              Returned {item.quantity}x {item.name}
+                              Returned {item.quantity} {unitFor(item)} {item.name}
                             </p>
                           ))}
+                          {ret.replacement_order_id && <p className='text-xs font-bold text-slate-500'>Replacement Order: #{String(ret.replacement_order_id).slice(0, 8)}</p>}
+                          {ret.balance_outcome && ret.balance_outcome !== "none" && (
+                            <p className='text-xs font-bold text-slate-500'>
+                              Balance: {String(ret.balance_outcome).replace("_", " ")} | Due {currency} {Number(ret.amount_due || 0).toFixed(2)} | Remaining {currency}{" "}
+                              {Number(ret.remaining_balance || 0).toFixed(2)}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -418,14 +438,15 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
 
             {/* Actions Footer */}
             <div className='p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-dark-border flex gap-4'>
-              <Button
-                onClick={() => setIsReturnModalOpen(true)}
-                disabled={selectedOrderDetails.status === "returned"}
-                className='flex-1 h-12 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-widest text-xs rounded-2xl gap-2 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all disabled:opacity-50'
-              >
-                <RotateCcw size={18} />
-                {selectedOrderDetails.status === "returned" ? "Already Returned" : "Initiate Return / Exchange"}
-              </Button>
+              {can("manage_inventory") && (
+                <Button
+                  onClick={() => setIsReturnModalOpen(true)}
+                  className='flex-1 h-12 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black uppercase tracking-widest text-xs rounded-2xl gap-2 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all'
+                >
+                  <RotateCcw size={18} />
+                  Initiate Return / Exchange
+                </Button>
+              )}
               <Button
                 variant='outline'
                 onClick={() => setIsReceiptOpen(true)}
@@ -449,7 +470,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
 
       {selectedOrderDetails && (
         <>
-          <ReturnExchangeModal isOpen={isReturnModalOpen} onClose={() => setIsReturnModalOpen(false)} order={selectedOrderDetails} onComplete={handleReturnComplete} />
+          <ReturnExchangeModal isOpen={isReturnModalOpen} onClose={() => setIsReturnModalOpen(false)} order={selectedOrderDetails} orderReturns={orderReturns} onComplete={handleReturnComplete} />
           <ReceiptModal isOpen={isReceiptOpen} onClose={() => setIsReceiptOpen(false)} order={selectedOrderDetails} />
         </>
       )}

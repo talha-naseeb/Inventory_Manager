@@ -8,8 +8,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
+    "test": "npm run rebuild:node && node --test tests/*.test.cjs",
+    "posttest": "npm run rebuild:electron",
     "preview": "vite preview",
-    "electron": "electron .",
+    "preelectron": "npm run rebuild:electron",
+    "electron": "env -u ELECTRON_RUN_AS_NODE electron .",
     "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
     "dist": "npm run build && electron-builder"
   },
@@ -37,6 +42,7 @@
     }
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.103.0",
     "@types/react-date-range": "^1.4.10",
     "better-sqlite3": "^12.6.2",
     "date-fns": "^4.1.0",

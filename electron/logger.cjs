@@ -3,8 +3,12 @@ const path = require("path");
 const { app } = require("electron");
 const os = require("os");
 
+function getUserDataPath() {
+  return app?.getPath ? app.getPath("userData") : path.join(os.tmpdir(), "inventoriman");
+}
+
 // Configure log file location: %APPDATA%/inventoriMan/logs/main.log
-log.transports.file.resolvePathFn = () => path.join(app.getPath("userData"), "logs", "main.log");
+log.transports.file.resolvePathFn = () => path.join(getUserDataPath(), "logs", "main.log");
 
 // Log format: [timestamp] [level] message
 log.transports.file.format = "[{y}-{m}-{d} {h}:{i}:{s}] [{level}] {text}";
@@ -29,12 +33,12 @@ function logStartup(version) {
   log.info(`OS: ${os.type()} ${os.release()} (${os.arch()})`);
   log.info(`Node: ${process.versions.node}`);
   log.info(`Electron: ${process.versions.electron}`);
-  log.info(`User Data: ${app.getPath("userData")}`);
+  log.info(`User Data: ${getUserDataPath()}`);
   log.info("=".repeat(50));
 }
 
 function getLogFilePath() {
-  return path.join(app.getPath("userData"), "logs", "main.log");
+  return path.join(getUserDataPath(), "logs", "main.log");
 }
 
 module.exports = { log, logStartup, getLogFilePath };

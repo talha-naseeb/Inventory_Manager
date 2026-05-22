@@ -191,7 +191,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ isOpen, onClos
   if (!isOpen) return null;
 
   return (
-    <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4'>
+    <div className='fixed inset-0 z-60 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4'>
       <div className='bg-white dark:bg-dark-surface rounded-3xl shadow-2xl w-full max-w-xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200'>
         {/* Header */}
         <div className='p-6 border-b border-slate-100 dark:border-dark-border flex justify-between items-center'>
@@ -234,7 +234,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ isOpen, onClos
                     <FileText size={24} />
                   </div>
                   <div>
-                    <p className='font-bold text-slate-900 dark:text-white truncate max-w-[240px]'>{file.name}</p>
+                    <p className='font-bold text-slate-900 dark:text-white truncate max-w-60'>{file.name}</p>
                     <p className='text-xs text-slate-500'>
                       {(file.size / 1024).toFixed(1)} KB • {preview.length} rows detected
                     </p>
@@ -285,7 +285,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ isOpen, onClos
             </div>
           )}
 
-          <div className='bg-slate-50 dark:bg-dark-bg/50 p-5 rounded-[2rem] border border-slate-200 dark:border-dark-border border-dashed'>
+          <div className='bg-slate-50 dark:bg-dark-bg/50 p-5 rounded-4xl border border-slate-200 dark:border-dark-border border-dashed'>
             <div className='flex gap-3'>
               <div className='shrink-0 w-8 h-8 bg-white dark:bg-dark-surface rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 dark:border-dark-border'>
                 <AlertCircle size={14} />

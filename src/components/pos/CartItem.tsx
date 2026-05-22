@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Minus, Plus, Trash2, GripVertical, Eye, EyeOff } from "lucide-react";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
+import { useBusinessProfile } from "../../hooks/useBusinessProfile";
 
 interface CartItemProps {
   id: string;
@@ -20,7 +21,13 @@ interface CartItemProps {
 
 export const CartItem: React.FC<CartItemProps> = ({ name, price, wholesalePrice, quantity, total, priceType, unit, isReturn, onUpdateQty, onUpdatePrice }) => {
   const { businessDetails } = useThemeStore();
+  const profile = useBusinessProfile();
   const currency = businessDetails.currency;
+  const normalizedUnit = unit?.trim();
+  const usesProfileUnit =
+    !normalizedUnit || normalizedUnit === "item" || normalizedUnit === profile.stockUnit.singular || normalizedUnit === profile.stockUnit.plural || normalizedUnit === profile.stockUnit.abbr;
+  const displayUnit = usesProfileUnit ? profile.stockUnitAbbr : normalizedUnit;
+  const quantityStep = normalizedUnit === "suit" ? 4 : 1;
 
   const [showPrice, setShowPrice] = useState(true);
 
@@ -96,11 +103,11 @@ export const CartItem: React.FC<CartItemProps> = ({ name, price, wholesalePrice,
         <div className='flex items-center bg-white dark:bg-dark-surface rounded-lg px-2 py-1 shadow-sm border border-slate-100 dark:border-dark-border'>
           {isReturn ? (
             <span className='text-xs font-bold text-slate-500'>
-              {quantity} {unit === "item" ? "pc" : unit}
+              {quantity} {displayUnit}
             </span>
           ) : (
             <div className='flex items-center gap-1.5'>
-              <button onClick={() => onUpdateQty(quantity - (unit === "suit" ? 4 : 1))} className='p-0.5 text-slate-400 hover:text-rose-500'>
+              <button onClick={() => onUpdateQty(quantity - quantityStep)} className='p-0.5 text-slate-400 hover:text-rose-500'>
                 <Minus size={12} strokeWidth={3} />
               </button>
               <div className='flex items-center'>
@@ -111,9 +118,9 @@ export const CartItem: React.FC<CartItemProps> = ({ name, price, wholesalePrice,
                   onChange={(e) => handleQtyUpdate(e.target.value)}
                   className='w-12 text-center text-xs font-black bg-transparent border-none focus:ring-0 p-0 text-primary'
                 />
-                <span className='text-[9px] font-black uppercase text-slate-400 ml-0.5'>{unit === "item" ? "pc" : unit}</span>
+                <span className='text-[9px] font-black uppercase text-slate-400 ml-0.5'>{displayUnit}</span>
               </div>
-              <button onClick={() => onUpdateQty(quantity + (unit === "suit" ? 4 : 1))} className='p-0.5 text-slate-400 hover:text-primary'>
+              <button onClick={() => onUpdateQty(quantity + quantityStep)} className='p-0.5 text-slate-400 hover:text-primary'>
                 <Plus size={12} strokeWidth={3} />
               </button>
             </div>
@@ -128,6 +135,7 @@ export const CartItem: React.FC<CartItemProps> = ({ name, price, wholesalePrice,
           <span className='text-[10px] font-bold text-slate-500'>
             {currency} {price.toFixed(2)}
           </span>
+          <span className='text-[10px] font-bold text-slate-500'>{`${quantity}${displayUnit} × ${currency} ${price.toFixed(2)}`}</span>
         </div>
         <div className='flex flex-col items-end'>
           <span className='text-[8px] font-black uppercase text-slate-400 tracking-[0.2em]'>Line Total</span>

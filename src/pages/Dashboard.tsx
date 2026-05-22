@@ -119,8 +119,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             ))}
           </div>
           <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-            <Skeleton className='h-[400px] rounded-2xl' />
-            <Skeleton className='h-[400px] rounded-2xl' />
+            <Skeleton className='h-100 rounded-2xl' />
+            <Skeleton className='h-100 rounded-2xl' />
           </div>
         </div>
       ) : (

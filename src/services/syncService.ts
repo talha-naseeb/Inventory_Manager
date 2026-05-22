@@ -1,46 +1,50 @@
-import { dbService } from "./database";
-
-export interface SyncItem {
-  id: string;
-  action_type: string;
-  entity_id: string;
-  payload_json: string;
-  status: "PENDING" | "SYNCED" | "FAILED";
-  created_at: string;
-}
-
 class SyncService {
-  private isProcessing = false;
-  private syncInterval: any = null;
   private listeners: Set<(status: { isOnline: boolean; pendingCount: number }) => void> = new Set();
   private pendingCount = 0;
-
-  constructor() {
-    window.addEventListener("online", () => this.handleNetworkChange());
-    window.addEventListener("offline", () => this.handleNetworkChange());
-  }
+  private isOnline = navigator.onLine;
+  private started = false;
 
   public start() {
-    if (this.syncInterval) return;
+    if (this.started) return;
+    this.started = true;
 
-    // Check every 30 seconds
-    this.syncInterval = setInterval(() => this.processQueue(), 30000);
-    this.processQueue(); // Immediate first check
+    window.addEventListener("online", () => this.handleNetworkChange(true));
+    window.addEventListener("offline", () => this.handleNetworkChange(false));
+
+    if (window.electronAPI?.sync) {
+      window.electronAPI.sync.onStatusChanged((status: { pendingCount?: number }) => {
+        this.pendingCount = Number(status?.pendingCount ?? 0);
+        this.notifyListeners();
+      });
+
+      this.refreshStatus();
+    }
   }
 
   public stop() {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-      this.syncInterval = null;
+    this.started = false;
+  }
+
+  private async refreshStatus() {
+    if (window.electronAPI?.sync) {
+      const status = await window.electronAPI.sync.getStatus();
+      this.pendingCount = typeof status === "number" ? status : Number(status?.pendingCount ?? 0);
+      this.notifyListeners();
     }
   }
 
-  private async handleNetworkChange() {
-    if (navigator.onLine) {
-      console.log("System back online. Triggering sync...");
-      await this.processQueue();
+  private handleNetworkChange(online: boolean) {
+    this.isOnline = online;
+    if (online) {
+      this.triggerSync();
     }
     this.notifyListeners();
+  }
+
+  public triggerSync() {
+    if (window.electronAPI?.sync) {
+      window.electronAPI.sync.trigger();
+    }
   }
 
   public subscribe(callback: (status: { isOnline: boolean; pendingCount: number }) => void) {
@@ -49,59 +53,12 @@ class SyncService {
     return () => this.listeners.delete(callback);
   }
 
-  private async notifyListeners() {
-    const queue = await dbService.query("SELECT COUNT(*) as count FROM sync_queue WHERE status = 'PENDING'");
-    this.pendingCount = queue[0]?.count || 0;
-
+  private notifyListeners() {
     const status = {
-      isOnline: navigator.onLine,
+      isOnline: this.isOnline,
       pendingCount: this.pendingCount,
     };
-
     this.listeners.forEach((callback) => callback(status));
-  }
-
-  public async processQueue() {
-    if (this.isProcessing || !navigator.onLine) return;
-    this.isProcessing = true;
-
-    try {
-      const pendingItems = await dbService.query<SyncItem>("SELECT * FROM sync_queue WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT 10");
-
-      if (pendingItems.length === 0) {
-        this.isProcessing = false;
-        this.notifyListeners();
-        return;
-      }
-
-      console.log(`Processing ${pendingItems.length} sync items...`);
-
-      for (const item of pendingItems) {
-        const success = await this.mockCloudSync(item);
-        if (success) {
-          await dbService.execute("UPDATE sync_queue SET status = 'SYNCED' WHERE id = ?", [item.id]);
-        } else {
-          // Stay PENDING for next retry
-          console.warn(`Sync failed for item ${item.id}. Will retry later.`);
-        }
-      }
-    } catch (error) {
-      console.error("Sync engine encountered an error:", error);
-    } finally {
-      this.isProcessing = false;
-      this.notifyListeners();
-    }
-  }
-
-  private async mockCloudSync(item: SyncItem): Promise<boolean> {
-    // Simulate network latency
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Simulate random failures (5% chance)
-    if (Math.random() < 0.05) return false;
-
-    console.log(`[MOCK CLOUD] Successfully synced ${item.action_type} for ${item.entity_id}`);
-    return true;
   }
 }
 

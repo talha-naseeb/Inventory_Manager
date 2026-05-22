@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, Package, Users, BarChart2, FileText, Download, DollarSign, ShoppingBag, Award, ArrowDownRight } from "lucide-react";
+import { TrendingUp, Package, Users, BarChart2, FileText, Download, DollarSign, ShoppingBag, Award, ArrowDownRight, Printer } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { cn } from "../lib/utils";
 import { dbService } from "../services/database";
 import { useThemeStore } from "../store/useThemeStore";
 import { Button } from "../components/ui/Button";
+import { usePermissions } from "../hooks/usePermissions";
 
 type TabType = "sales" | "brands" | "products" | "tax" | "staff" | "export";
 type DatePreset = "today" | "week" | "month" | "year" | "all";
@@ -66,7 +67,9 @@ function getDateRange(preset: DatePreset): { start: string; end: string } | unde
 function exportToCSV(data: any[], filename: string) {
   if (!data.length) return;
   const headers = Object.keys(data[0]).join(",");
-  const rows = data.map((row) => Object.values(row).join(",")).join("\n");
+  const rows = data.map((row) =>
+    Object.values(row).map((v) => (typeof v === "string" && v.includes(",") ? `"${v}"` : v)).join(",")
+  ).join("\n");
   const csv = `${headers}\n${rows}`;
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -77,8 +80,18 @@ function exportToCSV(data: any[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function printReport() {
+  const style = document.createElement("style");
+  style.id = "report-print-override";
+  style.textContent = `@page { size: A4 portrait; margin: 15mm; } @media print { body * { visibility: hidden; } #printable-report, #printable-report * { visibility: visible; } #printable-report { position: fixed; left: 0; top: 0; width: 100%; padding: 0; } }`;
+  document.head.appendChild(style);
+  window.print();
+  setTimeout(() => document.getElementById("report-print-override")?.remove(), 500);
+}
+
 export const Reports: React.FC = () => {
   const { businessDetails } = useThemeStore();
+  const { isAdmin, isOwner } = usePermissions();
   const currency = businessDetails.currency;
 
   const [activeTab, setActiveTab] = useState<TabType>("sales");
@@ -165,14 +178,16 @@ export const Reports: React.FC = () => {
     }
   };
 
-  const tabs = [
-    { id: "sales" as TabType, label: "Sales Summary", icon: <TrendingUp size={16} /> },
-    { id: "brands" as TabType, label: "Brand Analytics", icon: <BarChart2 size={16} /> },
-    { id: "products" as TabType, label: "Products", icon: <Package size={16} /> },
-    { id: "tax" as TabType, label: "Tax / NTN", icon: <FileText size={16} /> },
-    { id: "staff" as TabType, label: "Staff", icon: <Users size={16} /> },
-    { id: "export" as TabType, label: "Export", icon: <Download size={16} /> },
+  const allTabs = [
+    { id: "sales" as TabType, label: "Sales Summary", icon: <TrendingUp size={16} />, adminOnly: false },
+    { id: "brands" as TabType, label: "Brand Analytics", icon: <BarChart2 size={16} />, adminOnly: false },
+    { id: "products" as TabType, label: "Products", icon: <Package size={16} />, adminOnly: false },
+    { id: "tax" as TabType, label: "Tax / NTN", icon: <FileText size={16} />, adminOnly: true },
+    { id: "staff" as TabType, label: "Staff", icon: <Users size={16} />, adminOnly: true },
+    { id: "export" as TabType, label: "Export", icon: <Download size={16} />, adminOnly: false },
   ];
+
+  const tabs = allTabs.filter(tab => !tab.adminOnly || (isAdmin || isOwner));
 
   const StatCard = ({ label, value, sub, icon, color }: { label: string; value: string; sub?: string; icon: React.ReactNode; color: string }) => (
     <div className='bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border p-5 shadow-sm'>
@@ -313,7 +328,7 @@ export const Reports: React.FC = () => {
                             initial={{ width: 0 }}
                             animate={{ width: `${(brand.revenue / maxBrandRevenue) * 100}%` }}
                             transition={{ duration: 0.6, delay: i * 0.05 }}
-                            className='h-full bg-gradient-to-r from-primary to-primary/70 rounded-full flex items-center px-3'
+                            className='h-full bg-linear-to-r from-primary to-primary/70 rounded-full flex items-center px-3'
                           >
                             <span className='text-white text-xs font-bold whitespace-nowrap'>
                               {currency} {brand.revenue.toFixed(0)}
@@ -501,6 +516,24 @@ export const Reports: React.FC = () => {
 
             {/* ── EXPORT ── */}
             {activeTab === "export" && (
+              <div className='space-y-4'>
+                {/* Print PDF button */}
+                <div
+                  onClick={printReport}
+                  className='flex items-start gap-4 p-6 bg-white dark:bg-dark-surface rounded-2xl border border-slate-200 dark:border-dark-border hover:border-primary hover:shadow-md transition-all text-left group cursor-pointer'
+                >
+                  <div className='p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 group-hover:scale-110 transition-transform'>
+                    <Printer size={24} className='text-rose-600' />
+                  </div>
+                  <div>
+                    <h4 className='font-bold text-slate-900 dark:text-white'>Full Report PDF</h4>
+                    <p className='text-sm text-slate-500 mt-1'>Print or save a complete report summary as PDF (A4)</p>
+                    <p className='text-xs text-rose-600 font-semibold mt-2 flex items-center gap-1'>
+                      <Printer size={12} /> Print / Save as PDF
+                    </p>
+                  </div>
+                </div>
+
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 {[
                   {
@@ -585,10 +618,93 @@ export const Reports: React.FC = () => {
                   </button>
                 ))}
               </div>
+              </div>
             )}
           </motion.div>
         </AnimatePresence>
       )}
+
+      {/* Hidden printable report — shown only when printing */}
+      <div id="printable-report" className="hidden print:block bg-white text-slate-900 p-8 text-sm font-sans">
+        <div className="border-b-2 border-slate-900 pb-4 mb-6">
+          <h1 className="text-2xl font-black text-slate-900">Business Report</h1>
+          <p className="text-slate-500 text-sm mt-1">Period: {datePreset.charAt(0).toUpperCase() + datePreset.slice(1)} &nbsp;|&nbsp; Generated: {format(new Date(), "dd MMM yyyy, HH:mm")}</p>
+        </div>
+
+        {/* Sales summary */}
+        <h2 className="text-lg font-bold mb-3">Sales Summary</h2>
+        <table className="w-full text-sm mb-8 border border-slate-200">
+          <tbody>
+            {[
+              ["Total Revenue", `${currency} ${salesStats.totalRevenue.toFixed(2)}`],
+              ["Total Orders", salesStats.totalOrders.toString()],
+              ["Average Order Value", `${currency} ${salesStats.avgOrderValue.toFixed(2)}`],
+              ["Total Discounts", `${currency} ${salesStats.totalDiscount.toFixed(2)}`],
+              ["Tax Collected", `${currency} ${salesStats.totalTax.toFixed(2)}`],
+              ["Cash Sales", `${currency} ${salesStats.cashSales.toFixed(2)}`],
+              ["Card Sales", `${currency} ${salesStats.cardSales.toFixed(2)}`],
+              ["Bank Transfer Sales", `${currency} ${salesStats.bankSales.toFixed(2)}`],
+            ].map(([label, value]) => (
+              <tr key={label} className="border-b border-slate-100">
+                <td className="py-2 px-3 text-slate-600 font-medium">{label}</td>
+                <td className="py-2 px-3 text-right font-bold text-slate-900">{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Top products */}
+        {productStats.length > 0 && (
+          <>
+            <h2 className="text-lg font-bold mb-3">Top Products</h2>
+            <table className="w-full text-sm mb-8 border border-slate-200">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="py-2 px-3 text-left font-bold">#</th>
+                  <th className="py-2 px-3 text-left font-bold">Product</th>
+                  <th className="py-2 px-3 text-right font-bold">Units Sold</th>
+                  <th className="py-2 px-3 text-right font-bold">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productStats.map((p, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className="py-2 px-3 text-slate-500">{i + 1}</td>
+                    <td className="py-2 px-3 font-medium">{p.productName}</td>
+                    <td className="py-2 px-3 text-right">{p.totalSold}</td>
+                    <td className="py-2 px-3 text-right font-bold">{currency} {p.revenue.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* Staff performance */}
+        {staffStats.length > 0 && (
+          <>
+            <h2 className="text-lg font-bold mb-3">Staff Performance</h2>
+            <table className="w-full text-sm border border-slate-200">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="py-2 px-3 text-left font-bold">Staff</th>
+                  <th className="py-2 px-3 text-right font-bold">Orders</th>
+                  <th className="py-2 px-3 text-right font-bold">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffStats.map((s, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className="py-2 px-3 font-medium">{s.staffName || "Unknown"}</td>
+                    <td className="py-2 px-3 text-right">{s.orderCount}</td>
+                    <td className="py-2 px-3 text-right font-bold">{currency} {s.revenue.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
     </div>
   );
 };

@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, Package, Upload } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Search, Plus, Edit2, Trash2, Package, Upload, TrendingUp } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
 import { ProductModal } from "../components/inventory/ProductModal";
 import { BrandSidebar } from "../components/inventory/BrandSidebar";
 import { BrandModal } from "../components/inventory/BrandModal";
-import { dbService } from "../services/database";
+import { StockAdjustModal } from "../components/inventory/StockAdjustModal";
 import { BulkImportModal } from "../components/inventory/BulkImportModal";
+import { dbService } from "../services/database";
+import { usePermissions } from "../hooks/usePermissions";
+import { useBusinessProfile } from "../hooks/useBusinessProfile";
+import { useAuthStore } from "../store/useAuthStore";
 import type { Product } from "../types";
 
 interface Brand {
@@ -25,9 +29,17 @@ export const Inventory: React.FC = () => {
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
+  const [isStockAdjustOpen, setIsStockAdjustOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { can } = usePermissions();
+  const profile = useBusinessProfile();
+  const productPlural = profile.productNoun.plural;
+  const productSingular = profile.productNoun.singular;
+  const categoryPlural = profile.categoryNoun.endsWith("y") ? `${profile.categoryNoun.slice(0, -1)}ies` : `${profile.categoryNoun}s`;
+  const currentStaff = useAuthStore((state) => state.currentStaff);
 
-  const fetchBrands = async () => {
+  const fetchBrands = useCallback(async () => {
     try {
       const brandsData = await dbService.query<Brand>(`
         SELECT 
@@ -43,9 +55,9 @@ export const Inventory: React.FC = () => {
     } catch (error) {
       console.error("Failed to fetch brands:", error);
     }
-  };
+  }, []);
 
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     try {
       setLoading(true);
       let query = `
@@ -82,6 +94,10 @@ export const Inventory: React.FC = () => {
           stock: p.stock,
           image: p.image,
           description: p.description,
+          unit: p.unit,
+          meters_per_unit: p.meters_per_unit,
+          metersPerUnit: p.meters_per_unit ?? p.metersPerUnit,
+          lowStockAlert: p.low_stock_alert ?? p.lowStockAlert,
         })),
       );
     } catch (error) {
@@ -89,25 +105,23 @@ export const Inventory: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, selectedBrandId]);
 
   useEffect(() => {
     fetchBrands();
     fetchInventory();
-  }, [selectedBrandId, search]);
+  }, [fetchBrands, fetchInventory]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
+    if (!confirm(`Are you sure you want to delete this ${productSingular}?`)) return;
 
     try {
-      await dbService.execute("DELETE FROM inventory_logs WHERE product_id = ?", [id]);
-      await dbService.execute("DELETE FROM products WHERE id = ?", [id]);
-      await dbService.enqueueSync("DELETE_PRODUCT", id, { id, deletedAt: new Date().toISOString() });
+      await dbService.deleteProduct(id);
       fetchInventory();
       fetchBrands(); // Refresh counts
     } catch (error) {
       console.error("Failed to delete product:", error);
-      alert("Failed to delete product. Please try again.");
+      alert(`Failed to delete ${productSingular}. Please try again.`);
     }
   };
 
@@ -132,36 +146,24 @@ export const Inventory: React.FC = () => {
 
   const handleDeleteAllProducts = async () => {
     if (products.length === 0) {
-      alert("No products to delete.");
+      alert(`No ${productPlural} to delete.`);
       return;
     }
 
-    const confirmMessage = `⚠️ WARNING: This will permanently delete ALL ${products.length} product(s)!\n\nThis action cannot be undone.\n\nAre you absolutely sure?`;
+    const confirmMessage = `⚠️ WARNING: This will permanently delete ALL ${products.length} ${products.length === 1 ? productSingular : productPlural}!\n\nThis action cannot be undone.\n\nAre you absolutely sure?`;
 
     if (!confirm(confirmMessage)) return;
-
-    // Double confirmation for safety
-    if (!confirm("Last chance! Delete all products?")) return;
+    if (!confirm(`Last chance! Delete all ${productPlural}?`)) return;
 
     try {
-      // First, delete all dependent records to avoid foreign key constraint
-      await dbService.execute("DELETE FROM order_items");
-      await dbService.execute("DELETE FROM inventory_logs");
-
-      // Then delete all products
-      await dbService.execute("DELETE FROM products");
-
-      await dbService.enqueueSync("DELETE_ALL_PRODUCTS", "bulk", {
-        deletedAt: new Date().toISOString(),
-        count: products.length,
-      });
+      await dbService.clearInventory(currentStaff?.id);
 
       fetchInventory();
       fetchBrands(); // Refresh counts
-      alert(`Successfully deleted ${products.length} product(s) and cleared order history.`);
+      alert(`Successfully deleted ${products.length} ${products.length === 1 ? productSingular : productPlural}. Sales history and settings were kept.`);
     } catch (error) {
       console.error("Failed to delete all products:", error);
-      alert("Failed to delete products. Please try again.");
+      alert(`Failed to delete ${productPlural}. Please try again.`);
     }
   };
 
@@ -174,26 +176,31 @@ export const Inventory: React.FC = () => {
       <div className='bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border p-6'>
         <div className='flex items-center justify-between'>
           <div>
-            <h1 className='text-3xl font-bold text-slate-900 dark:text-white'>Inventory Management</h1>
+            <h1 className='text-3xl font-bold text-slate-900 dark:text-white'>Your {productPlural}</h1>
             <p className='text-slate-600 dark:text-slate-400 mt-1'>
-              {selectedBrandId ? brands.find((b) => b.id === selectedBrandId)?.name : "All Brands"} • {filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"}
+              {selectedBrandId ? brands.find((b) => b.id === selectedBrandId)?.name : `All ${categoryPlural}`} • {filteredProducts.length}{" "}
+              {filteredProducts.length === 1 ? productSingular : productPlural}
             </p>
           </div>
           <div className='flex gap-2'>
-            {products.length > 0 && (
+            {products.length > 0 && can("delete_product") && (
               <Button variant='outline' onClick={handleDeleteAllProducts} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20'>
                 <Trash2 size={18} className='mr-2' />
-                Delete All Products
+                Delete All {productPlural}
               </Button>
             )}
-            <Button variant='outline' onClick={() => setIsBulkImportOpen(true)}>
-              <Upload size={18} className='mr-2' />
-              Import CSV
-            </Button>
-            <Button onClick={handleAddProduct}>
-              <Plus size={18} className='mr-2' />
-              Add Product
-            </Button>
+            {can("manage_inventory") && (
+              <>
+                <Button variant='outline' onClick={() => setIsBulkImportOpen(true)}>
+                  <Upload size={18} className='mr-2' />
+                  Import CSV
+                </Button>
+                <Button onClick={handleAddProduct}>
+                  <Plus size={18} className='mr-2' />
+                  Add {productSingular}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -201,7 +208,7 @@ export const Inventory: React.FC = () => {
       {/* Main Content */}
       <div className='flex-1 flex overflow-hidden'>
         {/* Left Sidebar - Brands */}
-        <div className='w-64 flex-shrink-0'>
+        <div className='w-64 shrink-0'>
           <BrandSidebar
             brands={brands}
             selectedBrandId={selectedBrandId}
@@ -212,6 +219,7 @@ export const Inventory: React.FC = () => {
               fetchInventory();
             }}
             totalProducts={totalProducts}
+            categoryLabel={profile.categoryNoun}
           />
         </div>
 
@@ -221,7 +229,10 @@ export const Inventory: React.FC = () => {
           <div className='p-4 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border'>
             <div className='relative'>
               <Search className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={20} />
-              <Input type='text' placeholder='Search products by name or SKU...' value={search} onChange={(e) => setSearch(e.target.value)} className='pl-10' />
+              <label htmlFor='inventory-search' className='sr-only'>
+                Search {productPlural}
+              </label>
+              <Input id='inventory-search' type='text' placeholder={`Search ${productPlural} by name or SKU...`} value={search} onChange={(e) => setSearch(e.target.value)} className='pl-10' />
             </div>
           </div>
 
@@ -230,17 +241,17 @@ export const Inventory: React.FC = () => {
             {loading ? (
               <div className='text-center py-12'>
                 <div className='inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
-                <p className='text-slate-600 dark:text-slate-400 mt-4'>Loading products...</p>
+                <p className='text-slate-600 dark:text-slate-400 mt-4'>Loading {productPlural}...</p>
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className='text-center py-12'>
                 <Package size={48} className='mx-auto text-slate-300 dark:text-slate-600 mb-4' />
-                <h3 className='text-lg font-semibold text-slate-900 dark:text-white mb-2'>No products found</h3>
-                <p className='text-slate-600 dark:text-slate-400 mb-4'>{search ? "Try adjusting your search" : "Get started by adding your first product"}</p>
+                <h3 className='text-lg font-semibold text-slate-900 dark:text-white mb-2'>No {productPlural} found</h3>
+                <p className='text-slate-600 dark:text-slate-400 mb-4'>{search ? "Try adjusting your search" : `Get started by adding your first ${productSingular}`}</p>
                 {!search && (
                   <Button onClick={handleAddProduct}>
                     <Plus size={18} className='mr-2' />
-                    Add Product
+                    Add {productSingular}
                   </Button>
                 )}
               </div>
@@ -281,13 +292,29 @@ export const Inventory: React.FC = () => {
 
                       {/* Actions */}
                       <div className='flex gap-2'>
-                        <Button variant='outline' size='sm' onClick={() => handleEdit(product)} className='flex-1'>
-                          <Edit2 size={14} className='mr-1' />
-                          Edit
-                        </Button>
-                        <Button variant='outline' size='sm' onClick={() => handleDelete(product.id)} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20'>
-                          <Trash2 size={14} />
-                        </Button>
+                        {can("manage_inventory") && (
+                          <>
+                            <Button variant='outline' size='sm' onClick={() => handleEdit(product)} className='flex-1'>
+                              <Edit2 size={14} className='mr-1' />
+                              Edit
+                            </Button>
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => { setAdjustProduct(product); setIsStockAdjustOpen(true); }}
+                              className='text-primary hover:bg-primary/5'
+                              title="Adjust Stock"
+                              aria-label={`Adjust stock for ${product.name}`}
+                            >
+                              <TrendingUp size={14} />
+                            </Button>
+                          </>
+                        )}
+                        {can("delete_product") && (
+                          <Button variant='outline' size='sm' onClick={() => handleDelete(product.id)} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20' aria-label={`Delete ${product.name}`}>
+                            <Trash2 size={14} />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </Card>
@@ -318,6 +345,17 @@ export const Inventory: React.FC = () => {
         onSave={() => {
           fetchInventory();
           fetchBrands();
+        }}
+      />
+
+      <StockAdjustModal
+        isOpen={isStockAdjustOpen}
+        product={adjustProduct}
+        onClose={() => { setIsStockAdjustOpen(false); setAdjustProduct(null); }}
+        onSuccess={(newStock) => {
+          setProducts((prev) => prev.map((p) => p.id === adjustProduct?.id ? { ...p, stock: newStock } : p));
+          setIsStockAdjustOpen(false);
+          setAdjustProduct(null);
         }}
       />
     </div>

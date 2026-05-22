@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { cn } from "../../lib/utils";
 
 interface ProductImageProps {
@@ -9,6 +9,10 @@ interface ProductImageProps {
 
 export const ProductImage: React.FC<ProductImageProps> = ({ src, name, className }) => {
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setError(false);
+  }, [src]);
 
   const getInitials = (str: string) => {
     return str

@@ -7,6 +7,7 @@ import { useAuthStore } from "../../store/useAuthStore";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
 import { ReceiptPreview } from "./ReceiptPreview";
+import type { ExchangeBalanceOutcome, OrderItem } from "../../types";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -20,6 +21,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const { currentStaff } = useAuthStore();
   const currency = businessDetails.currency;
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi" | null>(null);
+  const [balanceOutcome, setBalanceOutcome] = useState<ExchangeBalanceOutcome>("none");
+  const [receiptSnapshot, setReceiptSnapshot] = useState<{
+    items: OrderItem[];
+    subtotal: number;
+    discount: number;
+    total: number;
+    customerName?: string;
+    paymentMethod: string;
+    orderNo: string;
+    returnedItems?: OrderItem[];
+    storeCreditUsed: number;
+    exchangeCredit?: number;
+    amountDue?: number;
+    remainingBalance?: number;
+    balanceOutcome?: ExchangeBalanceOutcome;
+    originalOrderId?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (isOpen && initialPaymentMethod) {
@@ -27,18 +45,40 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
     } else if (isOpen) {
       setPaymentMethod(null);
     }
+    if (isOpen) setBalanceOutcome("none");
   }, [isOpen, initialPaymentMethod]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const { total, subtotal, discount, customerName, cart, clearCart, completeOrder } = usePOSStore();
+  const { total, subtotal, discount, customerName, customerId, cart, clearCart, completeOrder, exchangeDraft, getExchangeTotals } = usePOSStore();
+  const exchangeTotals = getExchangeTotals();
+  const requiresPayment = !exchangeDraft || exchangeTotals.amountDue > 0;
 
   const handleCheckout = async () => {
-    if (!paymentMethod) return;
+    if (requiresPayment && !paymentMethod) return;
     setIsProcessing(true);
     try {
-      await completeOrder(paymentMethod, currentStaff?.id || null);
+      const { returnExchangeData, storeCredit } = usePOSStore.getState();
+      const snapshotReturnedItems = exchangeDraft?.returnedItems ?? returnExchangeData;
+      const finalPaymentMethod = requiresPayment ? paymentMethod! : "exchange";
+      const snapshot = {
+        items: cart.map((item) => ({ ...item })),
+        subtotal,
+        discount,
+        total,
+        customerName: customerName || undefined,
+        paymentMethod: finalPaymentMethod,
+        returnedItems: snapshotReturnedItems ? snapshotReturnedItems.map((item) => ({ ...item })) : undefined,
+        storeCreditUsed: storeCredit,
+        exchangeCredit: exchangeDraft ? exchangeTotals.returnCredit : undefined,
+        amountDue: exchangeDraft ? exchangeTotals.amountDue : undefined,
+        remainingBalance: exchangeDraft ? exchangeTotals.remainingBalance : undefined,
+        balanceOutcome: exchangeDraft ? balanceOutcome : undefined,
+        originalOrderId: exchangeDraft?.originalOrderId,
+      };
+      const orderId = await completeOrder(finalPaymentMethod, currentStaff?.id || null, { balanceOutcome });
+      setReceiptSnapshot({ ...snapshot, orderNo: orderId });
       setIsProcessing(false);
       setIsSuccess(true);
     } catch (error) {
@@ -51,6 +91,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
   const handleComplete = () => {
     onSuccess();
     clearCart();
+    setReceiptSnapshot(null);
     setIsSuccess(false);
     setPaymentMethod(null);
   };
@@ -86,17 +127,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                 <p className='text-sm text-slate-500'>Order marked as paid. Choose an option below.</p>
               </div>
 
-              <div id='printable-receipt' className='bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl overflow-auto max-h-[350px] scrollbar-hide border border-slate-100 dark:border-dark-border'>
-                <ReceiptPreview
-                  items={cart}
-                  subtotal={subtotal}
-                  discount={discount}
-                  total={total}
-                  customerName={customerName || undefined}
-                  paymentMethod={paymentMethod || undefined}
-                  returnedItems={usePOSStore.getState().returnExchangeData || undefined}
-                  storeCreditUsed={usePOSStore.getState().storeCredit}
-                />
+              <div id='printable-receipt' className='bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl overflow-auto max-h-87.5 scrollbar-hide border border-slate-100 dark:border-dark-border'>
+                {receiptSnapshot && (
+                  <ReceiptPreview
+                    items={receiptSnapshot.items}
+                    subtotal={receiptSnapshot.subtotal}
+                    discount={receiptSnapshot.discount}
+                    total={receiptSnapshot.total}
+                    customerName={receiptSnapshot.customerName}
+                    paymentMethod={receiptSnapshot.paymentMethod}
+                    orderNo={receiptSnapshot.orderNo}
+                    returnedItems={receiptSnapshot.returnedItems}
+                    storeCreditUsed={receiptSnapshot.storeCreditUsed}
+                    exchangeCredit={receiptSnapshot.exchangeCredit}
+                    amountDue={receiptSnapshot.amountDue}
+                    remainingBalance={receiptSnapshot.remainingBalance}
+                    balanceOutcome={receiptSnapshot.balanceOutcome}
+                    originalOrderId={receiptSnapshot.originalOrderId}
+                  />
+                )}
               </div>
 
               <div className='flex flex-col sm:flex-row gap-3 w-full max-w-sm'>
@@ -135,7 +184,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                       </div>
                     )}
                   </div>
-                  <div className='space-y-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-hide'>
+                  <div className='space-y-3 max-h-75 overflow-y-auto pr-2 scrollbar-hide'>
                     {cart.map((item) => (
                       <div key={item.id} className='flex justify-between text-sm'>
                         <span className='text-slate-600 dark:text-slate-400'>
@@ -173,7 +222,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
 
                 {/* Payment Methods */}
                 <div className='flex-1 p-6 space-y-6'>
-                  <h3 className='font-bold text-sm uppercase tracking-wider text-slate-400'>Payment Method</h3>
+                  <h3 className='font-bold text-sm uppercase tracking-wider text-slate-400'>{requiresPayment ? "Payment Method" : "No Extra Payment Required"}</h3>
                   <div className='grid grid-cols-1 gap-3'>
                     {[
                       { id: "cash", icon: <Banknote />, label: "Cash Payment" },
@@ -193,7 +242,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
                     ))}
                   </div>
 
-                  <Button className='w-full h-14' disabled={!paymentMethod || isProcessing} isLoading={isProcessing} onClick={handleCheckout}>
+                  {exchangeDraft && exchangeTotals.remainingBalance > 0 && (
+                    <div className='space-y-3'>
+                      <p className='text-xs font-bold uppercase tracking-wider text-slate-400'>Remaining Balance</p>
+                      <div className='grid grid-cols-1 gap-2'>
+                        <button
+                          onClick={() => setBalanceOutcome("cash_refund")}
+                          className={cn("p-3 rounded-xl border text-left text-sm font-bold", balanceOutcome === "cash_refund" ? "border-primary bg-primary/5 text-primary" : "border-slate-100")}
+                        >
+                          Cash Refund: {currency} {exchangeTotals.remainingBalance.toFixed(2)}
+                        </button>
+                        <button
+                          onClick={() => setBalanceOutcome("store_credit")}
+                          disabled={!customerId}
+                          className={cn(
+                            "p-3 rounded-xl border text-left text-sm font-bold disabled:opacity-40",
+                            balanceOutcome === "store_credit" ? "border-primary bg-primary/5 text-primary" : "border-slate-100",
+                          )}
+                        >
+                          Store Credit For Customer
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    className='w-full h-14'
+                    disabled={(requiresPayment && !paymentMethod) || isProcessing || Boolean(exchangeDraft && exchangeTotals.remainingBalance > 0 && balanceOutcome === "none")}
+                    isLoading={isProcessing}
+                    onClick={handleCheckout}
+                  >
                     Complete Sale
                   </Button>
                 </div>

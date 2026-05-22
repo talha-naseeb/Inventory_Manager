@@ -67,17 +67,17 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ onNavigate }) => {
           ) : (
             <div className='space-y-6 pt-2'>
               {activities.map((activity) => (
-                <div key={activity.id} className='flex space-x-4'>
+                <div key={activity.id} className='flex space-x-4 group' title={new Date(activity.timestamp).toLocaleString()}>
                   <div className='relative'>
-                    <div className='w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center z-10 relative'>{getIcon(activity.type)}</div>
-                    <div className='absolute top-8 left-4 w-px h-full bg-slate-100 dark:bg-dark-border -z-0 last:hidden' />
+                    <div className='w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center z-10 relative group-hover:bg-primary/10 transition-colors'>{getIcon(activity.type)}</div>
+                    <div className='absolute top-8 left-4 w-px h-full bg-slate-100 dark:bg-dark-border z-0 last:hidden' />
                   </div>
-                  <div>
-                    <p className='text-sm font-medium'>
-                      <span className='text-primary'>{activity.user}</span> {activity.action}
+                  <div className='flex-1 min-w-0'>
+                    <p className='text-sm font-medium text-slate-900 dark:text-white truncate'>
+                      <span className='text-primary font-bold'>{activity.user}</span> {activity.action}
                     </p>
-                    <p className='text-xs text-slate-500 mt-0.5'>{activity.target}</p>
-                    <p className='text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold'>
+                    <p className='text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate'>{activity.target}</p>
+                    <p className='text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-black'>
                       {new Date(activity.timestamp).toLocaleString(undefined, {
                         month: "short",
                         day: "numeric",

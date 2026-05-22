@@ -8,7 +8,7 @@ import { Login } from "./pages/auth/Login.tsx";
 import { SalesHistory } from "./pages/SalesHistory.tsx";
 import { Inventory } from "./pages/Inventory.tsx";
 import { Reports } from "./pages/Reports.tsx";
-import { Customers } from "./pages/Customers.tsx";
+import Customers from "./pages/Customers.tsx";
 
 import { useAuthStore } from "./store/useAuthStore";
 import { syncService } from "./services/syncService";
