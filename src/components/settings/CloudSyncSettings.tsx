@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Cloud, CheckCircle, AlertTriangle, RefreshCw, Eye, EyeOff, Zap, Database } from "lucide-react";
 import { Button } from "../ui/Button";
@@ -6,7 +6,33 @@ import { Input } from "../ui/Input";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { cn } from "../../lib/utils";
 
-const SUPABASE_SQL = `-- Run this SQL in your Supabase SQL Editor to create the sync tables:
+const SUPABASE_SQL = `-- Inventory Manager POS Supabase setup
+-- Use only a publishable/anon key in the desktop app. Service-role keys must never be used.
+-- Multi-store pilot model: users sign in with Supabase Auth, then RLS checks public.store_members.
+
+create table if not exists stores (
+  id text primary key,
+  name text not null,
+  status text default 'active',
+  created_at timestamptz default now()
+);
+
+create table if not exists store_members (
+  store_id text not null references stores(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text default 'staff',
+  created_at timestamptz default now(),
+  primary key (store_id, user_id)
+);
+
+create table if not exists brands (
+  id text primary key,
+  store_id text default 'default',
+  name text not null,
+  description text,
+  logo text,
+  created_at timestamptz default now()
+);
 
 create table if not exists products (
   id text primary key,
@@ -25,15 +51,6 @@ create table if not exists products (
   created_at timestamptz default now()
 );
 
-create table if not exists brands (
-  id text primary key,
-  store_id text default 'default',
-  name text not null,
-  description text,
-  logo text,
-  created_at timestamptz default now()
-);
-
 create table if not exists customers (
   id text primary key,
   store_id text default 'default',
@@ -41,6 +58,7 @@ create table if not exists customers (
   phone text,
   email text,
   address text,
+  store_credit_balance real default 0,
   created_at timestamptz default now()
 );
 
@@ -80,9 +98,13 @@ create table if not exists returns (
   id text primary key,
   store_id text default 'default',
   order_id text not null,
+  replacement_order_id text,
   return_value real default 0,
   items_json text,
   status text default 'completed',
+  balance_outcome text default 'none',
+  amount_due real default 0,
+  remaining_balance real default 0,
   created_at timestamptz default now()
 );
 
@@ -110,15 +132,101 @@ create table if not exists inventory_logs (
   reason text,
   staff_id text,
   created_at timestamptz default now()
-);`;
+);
+
+create table if not exists customer_credit_logs (
+  id text primary key,
+  store_id text default 'default',
+  customer_id text not null,
+  source_type text not null,
+  source_id text,
+  order_id text,
+  amount real not null,
+  balance_after real not null,
+  note text,
+  created_at timestamptz default now()
+);
+
+create or replace function public.user_has_store_access(target_store_id text)
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.store_members sm
+    where sm.store_id = target_store_id
+      and sm.user_id = auth.uid()
+  );
+$$;
+
+alter table stores enable row level security;
+alter table store_members enable row level security;
+alter table products enable row level security;
+alter table brands enable row level security;
+alter table customers enable row level security;
+alter table orders enable row level security;
+alter table order_items enable row level security;
+alter table returns enable row level security;
+alter table rolls enable row level security;
+alter table inventory_logs enable row level security;
+alter table customer_credit_logs enable row level security;
+
+create index if not exists store_members_user_id_idx on store_members (user_id);
+create index if not exists store_members_store_id_idx on store_members (store_id);
+create index if not exists products_store_id_idx on products (store_id);
+create index if not exists brands_store_id_idx on brands (store_id);
+create index if not exists customers_store_id_idx on customers (store_id);
+create index if not exists orders_store_id_idx on orders (store_id);
+create index if not exists order_items_store_id_idx on order_items (store_id);
+create index if not exists returns_store_id_idx on returns (store_id);
+create index if not exists rolls_store_id_idx on rolls (store_id);
+create index if not exists inventory_logs_store_id_idx on inventory_logs (store_id);
+create index if not exists customer_credit_logs_store_id_idx on customer_credit_logs (store_id);
+
+drop policy if exists "stores_member_select" on stores;
+create policy "stores_member_select" on stores for select to authenticated using (public.user_has_store_access(id));
+drop policy if exists "store_members_self_select" on store_members;
+create policy "store_members_self_select" on store_members for select to authenticated using (user_id = auth.uid());
+
+drop policy if exists "products_store_access" on products;
+create policy "products_store_access" on products for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "brands_store_access" on brands;
+create policy "brands_store_access" on brands for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "customers_store_access" on customers;
+create policy "customers_store_access" on customers for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "orders_store_access" on orders;
+create policy "orders_store_access" on orders for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "order_items_store_access" on order_items;
+create policy "order_items_store_access" on order_items for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "returns_store_access" on returns;
+create policy "returns_store_access" on returns for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "rolls_store_access" on rolls;
+create policy "rolls_store_access" on rolls for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "inventory_logs_store_access" on inventory_logs;
+create policy "inventory_logs_store_access" on inventory_logs for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+drop policy if exists "customer_credit_logs_store_access" on customer_credit_logs;
+create policy "customer_credit_logs_store_access" on customer_credit_logs for all to authenticated using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+
+-- After creating Auth users, insert one row per pilot store and member:
+-- insert into stores (id, name) values ('store-a', 'Downtown Branch');
+-- insert into store_members (store_id, user_id, role) values ('store-a', '<auth-user-uuid>', 'owner');`;
 
 export const CloudSyncSettings: React.FC = () => {
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseKey, setSupabaseKey] = useState("");
+  const [cloudEmail, setCloudEmail] = useState("");
+  const [cloudPassword, setCloudPassword] = useState("");
+  const [activationStoreId, setActivationStoreId] = useState("");
+  const [storeName, setStoreName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
+  const [isActivated, setIsActivated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
@@ -126,17 +234,18 @@ export const CloudSyncSettings: React.FC = () => {
   const [copiedSql, setCopiedSql] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     setIsLoading(true);
     try {
       if (window.electronAPI?.sync?.getSettings) {
         const settings = await window.electronAPI.sync.getSettings();
         setSupabaseUrl(settings.url || "");
         setIsConfigured(settings.isConfigured || false);
+        setIsActivated(settings.isActivated || false);
+        setIsAuthenticated(settings.isAuthenticated || false);
+        setActivationStoreId(settings.storeId || "");
+        setStoreName(settings.storeName || "");
+        setUserEmail(settings.userEmail || "");
         setPendingCount(settings.pendingCount || 0);
       }
     } catch (err) {
@@ -144,7 +253,11 @@ export const CloudSyncSettings: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const showMsg = (type: "success" | "error" | "info", text: string, duration = 4000) => {
     setMsg({ type, text });
@@ -153,7 +266,7 @@ export const CloudSyncSettings: React.FC = () => {
 
   const handleSave = async () => {
     if (!supabaseUrl.trim()) return showMsg("error", "Supabase URL is required.");
-    if (!supabaseKey.trim()) return showMsg("error", "Supabase API key is required.");
+    if (!isConfigured && !supabaseKey.trim()) return showMsg("error", "Supabase publishable/anon key is required.");
     if (!supabaseUrl.startsWith("https://")) return showMsg("error", "URL must start with https://");
 
     setSaving(true);
@@ -166,6 +279,7 @@ export const CloudSyncSettings: React.FC = () => {
       if (result?.success) {
         setIsConfigured(true);
         setSupabaseKey("");
+        await loadSettings();
         showMsg("success", "Supabase connected! Settings saved.");
       } else {
         showMsg("error", result?.error || "Failed to save settings.");
@@ -174,6 +288,64 @@ export const CloudSyncSettings: React.FC = () => {
       showMsg("error", err.message || "Save failed.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!supabaseUrl.trim()) return showMsg("error", "Supabase URL is required before activation.");
+    if (!isConfigured && !supabaseKey.trim()) return showMsg("error", "Save a publishable/anon key before activation.");
+    if (!cloudEmail.trim()) return showMsg("error", "Cloud email is required.");
+    if (!cloudPassword) return showMsg("error", "Cloud password is required.");
+    if (!activationStoreId.trim()) return showMsg("error", "Pilot store ID is required.");
+
+    setActivating(true);
+    setMsg(null);
+    try {
+      const result = await window.electronAPI.cloud.signIn({
+        url: supabaseUrl.trim(),
+        key: supabaseKey.trim(),
+        email: cloudEmail.trim(),
+        password: cloudPassword,
+        storeId: activationStoreId.trim(),
+      });
+      if (result?.success) {
+        setCloudPassword("");
+        setIsActivated(true);
+        setIsAuthenticated(true);
+        setActivationStoreId(result.storeId || activationStoreId.trim());
+        setStoreName(result.storeName || "");
+        setUserEmail(result.userEmail || cloudEmail.trim());
+        setIsConfigured(true);
+        setSupabaseKey("");
+        await loadSettings();
+        showMsg("success", `Activated ${result.storeName || result.storeId || "store"} for cloud sync.`);
+      } else {
+        showMsg("error", result?.error || "Store activation failed.");
+      }
+    } catch (err: any) {
+      showMsg("error", err.message || "Store activation failed.");
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setActivating(true);
+    setMsg(null);
+    try {
+      const result = await window.electronAPI.cloud.signOut();
+      if (result?.success) {
+        setIsAuthenticated(false);
+        setUserEmail("");
+        await loadSettings();
+        showMsg("success", "Cloud session signed out. Local POS remains available.");
+      } else {
+        showMsg("error", result?.error || "Cloud sign-out failed.");
+      }
+    } catch (err: any) {
+      showMsg("error", err.message || "Cloud sign-out failed.");
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -238,8 +410,8 @@ export const CloudSyncSettings: React.FC = () => {
               <CardTitle>Supabase Cloud Sync</CardTitle>
               <p className="text-xs text-slate-500 mt-0.5">Real-time sync of all sales, inventory, and customers to Supabase</p>
             </div>
-            <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold", isConfigured ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" : "bg-slate-100 text-slate-500")}>
-              {isConfigured ? <><CheckCircle size={12} /> Connected</> : "Not Connected"}
+            <span className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold", isActivated && isAuthenticated ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" : "bg-slate-100 text-slate-500")}>
+              {isActivated && isAuthenticated ? <><CheckCircle size={12} /> Activated</> : "Not Activated"}
             </span>
           </div>
         </CardHeader>
@@ -254,13 +426,14 @@ export const CloudSyncSettings: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-0.5">{pendingCount === 0 ? "All synced" : "waiting to sync"}</p>
               </div>
               <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl flex flex-col justify-between">
-                <p className="text-xs text-slate-500 font-medium">Sync Status</p>
+                <p className="text-xs text-slate-500 font-medium">Activated Store</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className={cn("w-2 h-2 rounded-full", pendingCount === 0 ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
-                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    {pendingCount === 0 ? "Up to date" : "Sync needed"}
+                  <span className={cn("w-2 h-2 rounded-full", isAuthenticated ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 truncate">
+                    {storeName || activationStoreId || "Activation required"}
                   </span>
                 </div>
+                {userEmail && <p className="text-xs text-slate-400 mt-1 truncate">{userEmail}</p>}
               </div>
             </div>
             <div className="flex gap-2 mt-4">
@@ -271,6 +444,9 @@ export const CloudSyncSettings: React.FC = () => {
               <Button size="sm" className="gap-2" onClick={handleSync} disabled={syncing}>
                 {syncing ? <RefreshCw size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                 Sync Now
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleSignOut} disabled={activating || !isAuthenticated}>
+                Sign Out Cloud
               </Button>
             </div>
           </CardContent>
@@ -293,7 +469,7 @@ export const CloudSyncSettings: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              {isConfigured ? "New API Key (leave blank to keep current)" : "Supabase API Key (anon/service role)"}
+              {isConfigured ? "New publishable/anon key (leave blank to keep current)" : "Supabase publishable/anon key"}
             </label>
             <div className="relative">
               <Input
@@ -311,7 +487,7 @@ export const CloudSyncSettings: React.FC = () => {
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1 px-1">Use a scoped publishable/anon key with Row Level Security policies for production deployments.</p>
+            <p className="text-[11px] text-slate-400 mt-1 px-1">Use a scoped publishable/anon key with Row Level Security policies. Service-role keys must never be used in this desktop app.</p>
           </div>
 
           {msg && (
@@ -332,6 +508,46 @@ export const CloudSyncSettings: React.FC = () => {
 
           <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? <><RefreshCw size={16} className="animate-spin mr-2" /> Saving...</> : isConfigured ? "Update Connection" : "Connect to Supabase"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Store Activation */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Activate Store</CardTitle>
+          <p className="text-xs text-slate-500 mt-0.5">Sign in with a Supabase Auth user that belongs to this pilot store.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Pilot Store ID</label>
+            <Input
+              value={activationStoreId}
+              onChange={(e) => setActivationStoreId(e.target.value)}
+              placeholder="store-a"
+            />
+            <p className="text-[11px] text-slate-400 mt-1 px-1">Must match a row in the Supabase <code>stores</code> table and the signed-in user's <code>store_members</code> row.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Cloud Email</label>
+            <Input
+              type="email"
+              value={cloudEmail}
+              onChange={(e) => setCloudEmail(e.target.value)}
+              placeholder="owner@example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Cloud Password</label>
+            <Input
+              type="password"
+              value={cloudPassword}
+              onChange={(e) => setCloudPassword(e.target.value)}
+              placeholder="Supabase Auth password"
+            />
+          </div>
+          <Button onClick={handleActivate} disabled={activating} className="w-full">
+            {activating ? <><RefreshCw size={16} className="animate-spin mr-2" /> Activating...</> : "Activate Store"}
           </Button>
         </CardContent>
       </Card>

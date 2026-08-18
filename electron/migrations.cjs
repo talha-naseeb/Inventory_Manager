@@ -310,6 +310,107 @@ async function runMigrations(db) {
         await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["business_type", "general"]);
         await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["custom_stock_unit", ""]);
       }
+    },
+    {
+      name: "009_cloud_activation_settings",
+      up: async (db) => {
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["cloud_store_id", ""]);
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["cloud_store_name", ""]);
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["cloud_user_email", ""]);
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["cloud_auth_session", ""]);
+      }
+    },
+    {
+      name: "010_conflict_resolution_support",
+      up: async (db) => {
+        await ensureColumn(db, "sync_queue", "vector_clock", "TEXT");
+        await ensureColumn(db, "sync_queue", "base_version_json", "TEXT");
+        await ensureColumn(db, "sync_queue", "conflict_status", "TEXT DEFAULT 'none'");
+        await ensureColumn(db, "sync_queue", "resolved_at", "DATETIME");
+        await ensureColumn(db, "sync_queue", "resolution_strategy", "TEXT");
+
+        // Add vector_clock column to main tables for optimistic locking
+        await ensureColumn(db, "products", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "customers", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "orders", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "brands", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "inventory_logs", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "customer_credit_logs", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "rolls", "version", "INTEGER DEFAULT 1");
+        await ensureColumn(db, "returns", "version", "INTEGER DEFAULT 1");
+
+        // Create index for conflict queries
+        await db.run(`CREATE INDEX IF NOT EXISTS idx_sync_queue_conflict ON sync_queue (conflict_status) WHERE conflict_status != 'none'`);
+      }
+    },
+    {
+      name: "011_purchase_orders",
+      up: async (db) => {
+        await db.run(`
+          CREATE TABLE IF NOT EXISTS suppliers (
+            id TEXT PRIMARY KEY,
+            store_id TEXT DEFAULT 'default',
+            name TEXT NOT NULL,
+            contact_person TEXT,
+            phone TEXT,
+            email TEXT,
+            address TEXT,
+            version INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        await db.run(`
+          CREATE TABLE IF NOT EXISTS purchase_orders (
+            id TEXT PRIMARY KEY,
+            store_id TEXT DEFAULT 'default',
+            supplier_id TEXT,
+            status TEXT DEFAULT 'pending',
+            total_amount REAL DEFAULT 0,
+            reference_number TEXT,
+            notes TEXT,
+            received_at DATETIME,
+            version INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (supplier_id) REFERENCES suppliers (id) ON DELETE SET NULL
+          )
+        `);
+
+        await db.run(`
+          CREATE TABLE IF NOT EXISTS purchase_order_items (
+            id TEXT PRIMARY KEY,
+            store_id TEXT DEFAULT 'default',
+            purchase_order_id TEXT NOT NULL,
+            product_id TEXT,
+            name TEXT NOT NULL,
+            sku TEXT,
+            cost_price REAL DEFAULT 0,
+            quantity REAL NOT NULL,
+            total_cost REAL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders (id) ON DELETE CASCADE,
+            FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE SET NULL
+          )
+        `);
+
+        await db.run(`CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier ON purchase_orders (supplier_id)`);
+        await db.run(`CREATE INDEX IF NOT EXISTS idx_purchase_order_items_po ON purchase_order_items (purchase_order_id)`);
+      }
+    },
+    {
+      name: "012_tax_compliance",
+      up: async (db) => {
+        await ensureColumn(db, "products", "hsn_code", "TEXT");
+        await ensureColumn(db, "products", "tax_rate", "REAL DEFAULT 0");
+
+        await ensureColumn(db, "order_items", "tax_rate", "REAL DEFAULT 0");
+        await ensureColumn(db, "order_items", "tax_amount", "REAL DEFAULT 0");
+
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_enabled", "false"]);
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_label", "GST"]);
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_number", ""]);
+        await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_rate_default", "0"]);
+      }
     }
   ];
 

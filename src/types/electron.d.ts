@@ -57,6 +57,8 @@ declare global {
     };
     database: {
       clearData: (args: { type: "inventory" | "sales" | "customers" | "full"; store_id: string; staff_id?: string }) => Promise<{ success: boolean; error?: string }>;
+      backup: () => Promise<{ success: boolean; path?: string; error?: string }>;
+      restore: () => Promise<{ success: boolean; error?: string }>;
     };
     settings: {
       getBusinessProfile: () => Promise<{ businessType: string; customStockUnit: string }>;
@@ -66,9 +68,19 @@ declare global {
       getStatus: () => Promise<any>;
       trigger: () => Promise<any>;
       setSettings: (settings: unknown) => Promise<any>;
-      getSettings: () => Promise<{ url: string; isConfigured: boolean; pendingCount: number }>;
+      getSettings: () => Promise<{ url: string; isConfigured: boolean; isActivated?: boolean; isAuthenticated?: boolean; storeId?: string; storeName?: string; userEmail?: string; pendingCount: number }>;
       saveSettings: (settings: { url: string; key: string }) => Promise<{ success: boolean; error?: string }>;
-      onStatusChanged: (callback: (status: any) => void) => void;
+      testConnection: () => Promise<any>;
+      onStatusChanged: (callback: (status: any) => void) => () => void;
+      onConflictDetected: (callback: (conflict: any) => void) => () => void;
+      getConflicts: () => Promise<any>;
+      resolveConflict: (args: { syncItemId: string; resolution: string; resolvedData: any }) => Promise<any>;
+      autoResolveAllConflicts: () => Promise<any>;
+    };
+    cloud: {
+      signIn: (args: { url?: string; key?: string; email: string; password: string; storeId?: string }) => Promise<{ success: boolean; storeId?: string; storeName?: string; userEmail?: string; error?: string }>;
+      signOut: () => Promise<{ success: boolean; error?: string }>;
+      getSession: () => Promise<{ isConfigured: boolean; isActivated: boolean; isAuthenticated: boolean; storeId: string; storeName: string; userEmail: string }>;
     };
     system: {
       getInfo: () => Promise<any>;
@@ -77,6 +89,12 @@ declare global {
     license: {
       getStatus: () => Promise<any>;
       activate: (key: string) => Promise<any>;
+    };
+    updates: {
+      install: () => Promise<void>;
+      onAvailable: (callback: (info: { version: string }) => void) => () => void;
+      onProgress: (callback: (progress: { percent: number }) => void) => () => void;
+      onDownloaded: (callback: (info: { version: string }) => void) => () => void;
     };
   }
 

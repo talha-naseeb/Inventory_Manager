@@ -123,6 +123,21 @@ test("migrations seed business profile settings defaults", async () => {
   db.close();
 });
 
+test("migrations seed cloud activation setting keys", async () => {
+  const db = await migratedDb();
+  const rows = await db.all("SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)", ["cloud_store_id", "cloud_store_name", "cloud_user_email", "cloud_auth_session"]);
+  const settings = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+
+  assert.deepEqual(settings, {
+    cloud_auth_session: "",
+    cloud_store_id: "",
+    cloud_store_name: "",
+    cloud_user_email: "",
+  });
+
+  db.close();
+});
+
 test("migrations upgrade legacy settings table for business profile upserts", async () => {
   const db = createMemoryDb();
   await db.run("CREATE TABLE settings (key TEXT, value TEXT)");

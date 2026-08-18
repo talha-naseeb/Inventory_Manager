@@ -1,5 +1,12 @@
 const { app, BrowserWindow, ipcMain, shell, protocol, net } = require("electron");
 const path = require("path");
+const isSmokeTest = process.env.INVENTORIMAN_SMOKE_TEST === "1";
+const smokeUserDataPath = process.env.INVENTORIMAN_SMOKE_USER_DATA;
+
+if (isSmokeTest && smokeUserDataPath) {
+  app.setPath("userData", smokeUserDataPath);
+}
+
 const { db, initDb } = require("./db.cjs");
 const { log, logStartup, getLogFilePath } = require("./logger.cjs");
 const { initLicenseTable, getLicenseStatus, activateLicense } = require("./licenseService.cjs");
@@ -44,6 +51,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    show: !isSmokeTest,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -52,7 +60,32 @@ function createWindow() {
     },
   });
 
-  if (isDev) {
+  if (isSmokeTest) {
+    mainWindow.webContents.once("did-fail-load", (_event, errorCode, errorDescription) => {
+      console.error(`ELECTRON_SMOKE_FAILED: renderer load failed (${errorCode}: ${errorDescription})`);
+      app.exit(1);
+    });
+
+    mainWindow.webContents.once("did-finish-load", () => {
+      setTimeout(async () => {
+        try {
+          const rendererMounted = await mainWindow.webContents.executeJavaScript(
+            "Boolean(document.querySelector('#root')?.childElementCount)",
+          );
+          if (!rendererMounted) {
+            throw new Error("renderer root did not mount");
+          }
+          console.log("ELECTRON_SMOKE_READY");
+          app.quit();
+        } catch (error) {
+          console.error("ELECTRON_SMOKE_FAILED:", error);
+          app.exit(1);
+        }
+      }, 250);
+    });
+  }
+
+  if (isDev && !isSmokeTest) {
     mainWindow.loadURL("http://localhost:5173");
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
@@ -93,6 +126,9 @@ app.whenReady().then(async () => {
 
   logStartup(app.getVersion());
   createWindow();
+}).catch((error) => {
+  log.error("Application startup failed:", error);
+  app.exit(1);
 });
 
 app.on("window-all-closed", () => {
@@ -512,6 +548,63 @@ ipcMain.handle("api:database:clearData", async (event, { type, store_id = 'defau
   }
 });
 
+ipcMain.handle("api:database:backup", async () => {
+  try {
+    const { dialog } = require("electron");
+    const result = await dialog.showSaveDialog({
+      title: "Backup Database",
+      defaultPath: `inventoriman_backup_${new Date().toISOString().split('T')[0]}.db`,
+      filters: [{ name: "SQLite Database", extensions: ["db"] }]
+    });
+
+    if (result.canceled || !result.filePath) return { success: false };
+    
+    await db.backup(result.filePath);
+    return { success: true, path: result.filePath };
+  } catch (err) {
+    log.error("Database Backup Error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("api:database:restore", async () => {
+  try {
+    const { dialog } = require("electron");
+    const result = await dialog.showOpenDialog({
+      title: "Restore Database",
+      filters: [{ name: "SQLite Database", extensions: ["db"] }],
+      properties: ["openFile"]
+    });
+
+    if (result.canceled || result.filePaths.length === 0) return { success: false };
+    
+    const sourcePath = result.filePaths[0];
+    const destPath = path.join(app.getPath("userData"), "inventoriman.db");
+    
+    // Warn the user
+    const choice = dialog.showMessageBoxSync({
+      type: "warning",
+      buttons: ["Cancel", "Restore and Restart"],
+      defaultId: 0,
+      title: "Confirm Restore",
+      message: "Restoring will overwrite your current database and restart the application. All unsynced changes will be lost. Are you sure?",
+    });
+    
+    if (choice !== 1) return { success: false };
+
+    // Close DB, copy file, and restart
+    await db.close();
+    fs.copyFileSync(sourcePath, destPath);
+    app.relaunch();
+    app.exit(0);
+    
+    return { success: true };
+  } catch (err) {
+    log.error("Database Restore Error:", err);
+    return { success: false, error: err.message };
+  }
+});
+
 // ── IPC: System Info ──────────────────────────────────────────────────────────
 ipcMain.handle("license:getStatus", async () => {
   return getLicenseStatus();
@@ -544,7 +637,7 @@ ipcMain.handle("system:openLogFile", () => {
 
 // ── IPC: Update ───────────────────────────────────────────────────────────────
 ipcMain.handle("update:install", () => {
-  if (!isDev) {
+  if (app.isPackaged) {
     try {
       const { installUpdate } = require("./updater.cjs");
       installUpdate();

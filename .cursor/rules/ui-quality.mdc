@@ -1,0 +1,24 @@
+---
+description: Enforce professional responsive UI and visual-quality standards
+globs: "src/**/*.{ts,tsx,css},mobile/**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+# Professional UI Quality Rule
+
+- Read the Mandatory UI and Responsive-Design Standard in `docs/IMPLEMENTATION_PLAN.md` before changing UI.
+- Use the InventoriMan direction: calm, precise, data-forward retail operations software.
+- Plan the visual hierarchy and responsive behavior before writing components.
+- Reuse design tokens and shared primitives; do not introduce isolated visual systems.
+- Keep panels proportionate to their content and avoid oversized empty cards, excessive padding, and deeply nested wrapper `div` elements.
+- Prefer semantic structures and focused components with one clear responsibility.
+- Keep operational screens compact, scannable, and efficient without making controls cramped.
+- Use maximum content widths for forms and settings instead of stretching them unnecessarily.
+- Make navigation, tables, charts, filters, forms, and actions usable at every required viewport.
+- Do not hide essential actions merely to make a narrow layout fit.
+- Include loading, empty, error, offline, disabled, focus, hover, and success states.
+- Meet WCAG 2.1 AA, preserve keyboard access, show focus, and respect reduced motion.
+- Add interaction tests and responsive visual coverage for meaningful UI changes.
+- Inspect screenshots at the plan's required sizes before declaring UI work complete.
+- Do not approve UI work with clipping, overlap, unintended page overflow, unreadable charts, inconsistent spacing, or generic template styling.
+- Require owner visual acceptance as part of the current phase gate.

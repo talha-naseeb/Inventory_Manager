@@ -8,6 +8,7 @@ import { dbService } from "../../services/database";
 import { cn } from "../../lib/utils";
 import type { Product } from "../../types";
 import { useBusinessProfile } from "../../hooks/useBusinessProfile";
+import { useThemeStore } from "../../store/useThemeStore";
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -29,6 +30,8 @@ interface FormData {
   image: string;
   unit: string;
   meters_per_unit: string;
+  hsn_code: string;
+  tax_rate: string;
 }
 
 const initialForm: FormData = {
@@ -43,10 +46,13 @@ const initialForm: FormData = {
   image: "",
   unit: "item",
   meters_per_unit: "1.0",
+  hsn_code: "",
+  tax_rate: "0",
 };
 
 export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, product, selectedBrandId }) => {
   const profile = useBusinessProfile();
+  const { businessDetails } = useThemeStore();
   const fieldId = useId();
   const [formData, setFormData] = useState<FormData>(initialForm);
   const [rolls, setRolls] = useState<{ id: string; roll_number: string; current_length: string; initial_length: string; unit: string }[]>([]);
@@ -95,9 +101,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
           image: product.image || "",
           unit: product.unit || defaultStockUnit,
           meters_per_unit: (product.meters_per_unit ?? product.metersPerUnit)?.toString() || "1.0",
+          hsn_code: product.hsn_code || "",
+          tax_rate: product.tax_rate?.toString() || businessDetails.taxRateDefault?.toString() || "0",
         });
       } else {
-        setFormData({ ...initialForm, brand_id: selectedBrandId || "", unit: defaultStockUnit });
+        setFormData({
+          ...initialForm,
+          brand_id: selectedBrandId || "",
+          unit: defaultStockUnit,
+          tax_rate: businessDetails.taxRateDefault?.toString() || "0",
+        });
       }
       setErrors({});
       if (profile.hasRolls && product) {
@@ -118,7 +131,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
         setRolls([]);
       }
     }
-  }, [isOpen, product, selectedBrandId, defaultStockUnit, profile.hasRolls]);
+  }, [isOpen, product, selectedBrandId, defaultStockUnit, profile.hasRolls, businessDetails.taxRateDefault]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -155,6 +168,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
         image: formData.image.trim() || null,
         unit: formData.unit || defaultStockUnit,
         meters_per_unit: parseFloat(formData.meters_per_unit) || 1.0,
+        hsn_code: formData.hsn_code.trim() || null,
+        tax_rate: parseFloat(formData.tax_rate) || 0,
       };
 
       if (product) {
@@ -354,6 +369,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
                     />
                   </div>
                 </div>
+
+                {businessDetails.taxEnabled && (
+                  <div className='grid grid-cols-2 gap-4 p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/20'>
+                    <div>
+                      <label className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>HSN / Tax Code</label>
+                      <input
+                        type='text'
+                        value={formData.hsn_code}
+                        onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
+                        className='w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-bg text-sm focus:border-primary transition-colors'
+                        placeholder='Optional'
+                      />
+                    </div>
+                    <div>
+                      <label className='block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2'>{businessDetails.taxLabel} Rate (%)</label>
+                      <input
+                        type='number'
+                        step='0.01'
+                        value={formData.tax_rate}
+                        onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
+                        className='w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-dark-border bg-white dark:bg-dark-bg text-sm focus:border-primary transition-colors'
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {canConfigureLength && (

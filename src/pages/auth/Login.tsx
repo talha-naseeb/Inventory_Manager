@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Delete, ArrowRight, Loader2, ShieldCheck, User } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -11,17 +11,17 @@ export const Login: React.FC = () => {
   const { login, isLoading, error } = useAuthStore();
   const { isDarkMode, primaryColor, accentColor } = useThemeStore();
 
-  const handleNumberClick = (num: string) => {
+  const handleNumberClick = useCallback((num: string) => {
     if (pin.length < 6) {
       setPin((prev) => prev + num);
     }
-  };
+  }, [pin.length]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     setPin((prev) => prev.slice(0, -1));
-  };
+  }, []);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (pin.length >= 4) {
       const success = await login(pin);
@@ -29,14 +29,14 @@ export const Login: React.FC = () => {
         setPin(""); // Reset on failure
       }
     }
-  };
+  }, [login, pin]);
 
   // Auto-submit on 6 digits
   useEffect(() => {
     if (pin.length === 6) {
       handleSubmit();
     }
-  }, [pin]);
+  }, [handleSubmit, pin.length]);
 
   // Handle physical keyboard input
   useEffect(() => {
@@ -57,7 +57,7 @@ export const Login: React.FC = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pin, isLoading]); // Re-bind when pin or loading state changes to have fresh closure values
+  }, [handleDelete, handleNumberClick, handleSubmit, isLoading, pin.length]); // Re-bind when pin or loading state changes to have fresh closure values
 
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 

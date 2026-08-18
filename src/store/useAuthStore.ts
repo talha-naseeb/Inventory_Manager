@@ -32,38 +32,26 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      cloudLogin: async (_email, _pass) => {
+      cloudLogin: async (email, pass) => {
         set({ isLoading: true, error: null });
         try {
-          // In a real SaaS, this would be an IPC call to the Main process 
-          // which then calls the Cloud API to get a JWT and Store ID.
-          // For now, we simulate the Cloud API response.
-          
-          // const result = await window.electronAPI.auth.cloudLogin(email, pass);
-          const result = { 
-            success: true, 
-            token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", // Mock JWT
-            storeId: "store_abc_123",
-            ownerName: "Cloud User"
-          };
+          const requestedStoreId = get().storeId !== "default" ? get().storeId : undefined;
+          const result = await window.electronAPI.cloud.signIn({
+            email,
+            password: pass,
+            storeId: requestedStoreId,
+          });
 
           if (result.success) {
-            // Update SyncManager with the new Cloud credentials
-            if (window.electronAPI?.sync) {
-              await window.electronAPI.sync.setSettings({
-                url: "https://api.inventoriman.com/v1", // Pro SaaS URL
-                key: result.token
-              });
-            }
-
             set({ 
-              cloudToken: result.token, 
-              storeId: result.storeId,
+              cloudToken: null,
+              storeId: result.storeId || "default",
               isCloudConnected: true,
               isLoading: false 
             });
             return true;
           }
+          set({ error: result.error || "Cloud connection failed", isLoading: false });
           return false;
         } catch (_err) {
           set({ error: "Cloud connection failed", isLoading: false });

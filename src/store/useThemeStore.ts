@@ -11,6 +11,10 @@ export interface BusinessDetails {
   measurementUnit: "meters" | "yards";
   standardSuitLength: number;
   ntn?: string; // Optional NTN/Tax ID
+  taxEnabled?: boolean;
+  taxLabel?: string;
+  taxNumber?: string;
+  taxRateDefault?: number;
   footerMessage?: string;
   logo?: string;
 }
@@ -46,6 +50,10 @@ export const useThemeStore = create<ThemeState>()(
         measurementUnit: "meters",
         standardSuitLength: 4,
         ntn: "1234567-8",
+        taxEnabled: false,
+        taxLabel: "GST",
+        taxNumber: "",
+        taxRateDefault: 0,
         footerMessage: "Thank you for shopping with us!",
         logo: undefined,
       },
@@ -70,6 +78,10 @@ export const useThemeStore = create<ThemeState>()(
             measurementUnit: "meters",
             standardSuitLength: 4,
             ntn: "1234567-8",
+            taxEnabled: false,
+            taxLabel: "GST",
+            taxNumber: "",
+            taxRateDefault: 0,
             footerMessage: "Thank you for shopping with us!",
             logo: undefined,
           },

@@ -8,7 +8,7 @@ const db = new Database(dbPath);
 // Enable foreign keys
 db.pragma("foreign_keys = ON");
 
-parentPort.on("message", (task) => {
+parentPort.on("message", async (task) => {
   const { id, type, sql, params } = task;
 
   try {
@@ -28,6 +28,13 @@ parentPort.on("message", (task) => {
         }
       });
       transaction(params);
+      result = { success: true };
+    } else if (type === "backup") {
+      // params[0] is the destination path
+      await db.backup(params[0]);
+      result = { success: true };
+    } else if (type === "close") {
+      db.close();
       result = { success: true };
     }
 

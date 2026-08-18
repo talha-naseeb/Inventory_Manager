@@ -8,6 +8,7 @@ import { Login } from "./pages/auth/Login.tsx";
 import { SalesHistory } from "./pages/SalesHistory.tsx";
 import { Inventory } from "./pages/Inventory.tsx";
 import { Reports } from "./pages/Reports.tsx";
+import { PurchaseOrders } from "./pages/PurchaseOrders.tsx";
 import Customers from "./pages/Customers.tsx";
 
 import { useAuthStore } from "./store/useAuthStore";
@@ -42,6 +43,8 @@ function App() {
         return <SalesHistory onPageChange={setCurrentPage} />;
       case "inventory":
         return <Inventory />;
+      case "purchase-orders":
+        return <PurchaseOrders />;
       case "reports":
         return <Reports />;
       case "customers":

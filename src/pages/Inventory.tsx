@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Search, Plus, Edit2, Trash2, Package, Upload, TrendingUp } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Package, Upload, TrendingUp, Printer, CheckCircle2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
@@ -8,10 +8,12 @@ import { BrandSidebar } from "../components/inventory/BrandSidebar";
 import { BrandModal } from "../components/inventory/BrandModal";
 import { StockAdjustModal } from "../components/inventory/StockAdjustModal";
 import { BulkImportModal } from "../components/inventory/BulkImportModal";
+import { LabelPrinterModal } from "../components/inventory/LabelPrinterModal";
 import { dbService } from "../services/database";
 import { usePermissions } from "../hooks/usePermissions";
 import { useBusinessProfile } from "../hooks/useBusinessProfile";
 import { useAuthStore } from "../store/useAuthStore";
+import { cn } from "../lib/utils";
 import type { Product } from "../types";
 
 interface Brand {
@@ -31,6 +33,8 @@ export const Inventory: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [isStockAdjustOpen, setIsStockAdjustOpen] = useState(false);
+  const [isLabelPrinterOpen, setIsLabelPrinterOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const { can } = usePermissions();
   const profile = useBusinessProfile();
@@ -144,6 +148,18 @@ export const Inventory: React.FC = () => {
     fetchBrands();
   };
 
+  const toggleProductSelection = (id: string) => {
+    const newSelection = new Set(selectedProductIds);
+    if (newSelection.has(id)) newSelection.delete(id);
+    else newSelection.add(id);
+    setSelectedProductIds(newSelection);
+  };
+
+  const selectAll = () => {
+    if (selectedProductIds.size === products.length && products.length > 0) setSelectedProductIds(new Set());
+    else setSelectedProductIds(new Set(products.map(p => p.id)));
+  };
+
   const handleDeleteAllProducts = async () => {
     if (products.length === 0) {
       alert(`No ${productPlural} to delete.`);
@@ -169,6 +185,7 @@ export const Inventory: React.FC = () => {
 
   const totalProducts = products.length;
   const filteredProducts = products;
+  const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
 
   return (
     <div className='h-screen flex flex-col bg-slate-50 dark:bg-dark-bg'>
@@ -183,7 +200,13 @@ export const Inventory: React.FC = () => {
             </p>
           </div>
           <div className='flex gap-2'>
-            {products.length > 0 && can("delete_product") && (
+            {selectedProductIds.size > 0 && (
+              <Button variant='outline' onClick={() => setIsLabelPrinterOpen(true)} className='bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20'>
+                <Printer size={18} className='mr-2' />
+                Print {selectedProductIds.size} Labels
+              </Button>
+            )}
+            {products.length > 0 && can("delete_product") && selectedProductIds.size === 0 && (
               <Button variant='outline' onClick={handleDeleteAllProducts} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20'>
                 <Trash2 size={18} className='mr-2' />
                 Delete All {productPlural}
@@ -226,14 +249,19 @@ export const Inventory: React.FC = () => {
         {/* Right Panel - Products */}
         <div className='flex-1 flex flex-col overflow-hidden'>
           {/* Search Bar */}
-          <div className='p-4 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border'>
-            <div className='relative'>
+          <div className='p-4 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border flex items-center gap-4'>
+            <div className='flex-1 relative'>
               <Search className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400' size={20} />
               <label htmlFor='inventory-search' className='sr-only'>
                 Search {productPlural}
               </label>
               <Input id='inventory-search' type='text' placeholder={`Search ${productPlural} by name or SKU...`} value={search} onChange={(e) => setSearch(e.target.value)} className='pl-10' />
             </div>
+            {products.length > 0 && (
+              <Button variant="outline" size="sm" onClick={selectAll} className="text-xs uppercase font-black tracking-widest px-4">
+                {selectedProductIds.size === products.length ? "Deselect All" : "Select All"}
+              </Button>
+            )}
           </div>
 
           {/* Products Grid */}
@@ -258,7 +286,24 @@ export const Inventory: React.FC = () => {
             ) : (
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
                 {filteredProducts.map((product) => (
-                  <Card key={product.id} className='overflow-hidden hover:shadow-lg transition-shadow'>
+                  <Card 
+                    key={product.id} 
+                    className={cn(
+                      "group overflow-hidden hover:shadow-lg transition-all relative cursor-pointer border-2",
+                      selectedProductIds.has(product.id) ? "border-primary ring-4 ring-primary/10" : "border-transparent"
+                    )}
+                    onClick={() => toggleProductSelection(product.id)}
+                  >
+                    {/* Selection Indicator */}
+                    <div className={cn(
+                      "absolute top-3 left-3 z-10 transition-all",
+                      selectedProductIds.has(product.id) ? "scale-100" : "scale-0 group-hover:scale-75"
+                    )}>
+                      <div className="bg-white dark:bg-dark-bg rounded-full shadow-lg">
+                        <CheckCircle2 size={24} className={cn(selectedProductIds.has(product.id) ? "text-primary" : "text-slate-300")} />
+                      </div>
+                    </div>
+
                     {/* Product Image */}
                     <div className='aspect-square bg-slate-100 dark:bg-slate-800 relative'>
                       {product.image ? (
@@ -275,14 +320,14 @@ export const Inventory: React.FC = () => {
                           <Package size={48} className='text-slate-300 dark:text-slate-600' />
                         </div>
                       )}
-                      {product.brand && <div className='absolute top-2 left-2 bg-primary text-white text-xs px-2 py-1 rounded-full font-medium'>{product.brand}</div>}
+                      {product.brand && <div className='absolute top-2 left-2 bg-primary text-white text-xs px-2 py-1 rounded-full font-medium ml-8'>{product.brand}</div>}
                       {product.stock <= 5 && <div className='absolute top-2 right-2 bg-rose-500 text-white text-xs px-2 py-1 rounded-full font-medium'>Low Stock</div>}
                     </div>
 
                     {/* Product Details */}
-                    <div className='p-4'>
+                    <div className='p-4' onClick={(e) => e.stopPropagation()}>
                       <h3 className='font-semibold text-slate-900 dark:text-white mb-1 truncate'>{product.name}</h3>
-                      <p className='text-sm text-slate-600 dark:text-slate-400 mb-2'>SKU: {product.sku}</p>
+                      <p className='text-sm text-slate-600 dark:text-slate-400 mb-2'>SKU: {product.sku || 'N/A'}</p>
                       <div className='flex items-center justify-between mb-3'>
                         <div>
                           <p className='text-lg font-bold text-primary'>PKR {product.price.toFixed(2)}</p>
@@ -310,6 +355,18 @@ export const Inventory: React.FC = () => {
                             </Button>
                           </>
                         )}
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => {
+                            setSelectedProductIds(new Set([product.id]));
+                            setIsLabelPrinterOpen(true);
+                          }}
+                          className='text-indigo-600 hover:bg-indigo-50'
+                          title="Print Label"
+                        >
+                          <Printer size={14} />
+                        </Button>
                         {can("delete_product") && (
                           <Button variant='outline' size='sm' onClick={() => handleDelete(product.id)} className='text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20' aria-label={`Delete ${product.name}`}>
                             <Trash2 size={14} />
@@ -358,6 +415,16 @@ export const Inventory: React.FC = () => {
           setAdjustProduct(null);
         }}
       />
+
+      {isLabelPrinterOpen && (
+        <LabelPrinterModal
+          products={selectedProducts}
+          onClose={() => {
+            setIsLabelPrinterOpen(false);
+            // Don't clear selection, maybe they want to print more
+          }}
+        />
+      )}
     </div>
   );
 };

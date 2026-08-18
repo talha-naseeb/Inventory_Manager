@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+function subscribe(channel, callback) {
+  const listener = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
+
 contextBridge.exposeInMainWorld("electronAPI", {
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
   // Specific API handlers for better security and type safety
@@ -45,6 +51,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   database: {
     clearData: (args) => ipcRenderer.invoke("api:database:clearData", args),
+    backup: () => ipcRenderer.invoke("api:database:backup"),
+    restore: () => ipcRenderer.invoke("api:database:restore"),
   },
   settings: {
     getBusinessProfile: () => ipcRenderer.invoke("api:settings:getBusinessProfile"),
@@ -57,7 +65,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     getSettings: () => ipcRenderer.invoke("sync:getSettings"),
     saveSettings: (settings) => ipcRenderer.invoke("sync:saveSettings", settings),
     testConnection: () => ipcRenderer.invoke("sync:testConnection"),
-    onStatusChanged: (callback) => ipcRenderer.on("sync:status-changed", (event, status) => callback(status)),
+    onStatusChanged: (callback) => subscribe("sync:status-changed", callback),
+    onConflictDetected: (callback) => subscribe("sync:conflict-detected", callback),
+    getConflicts: () => ipcRenderer.invoke("sync:getConflicts"),
+    resolveConflict: (args) => ipcRenderer.invoke("sync:resolveConflict", args),
+    autoResolveAllConflicts: () => ipcRenderer.invoke("sync:autoResolveAllConflicts"),
+  },
+  cloud: {
+    signIn: (args) => ipcRenderer.invoke("auth:signIn", args),
+    signOut: () => ipcRenderer.invoke("auth:signOut"),
+    getSession: () => ipcRenderer.invoke("auth:getSession"),
   },
   system: {
     getInfo: () => ipcRenderer.invoke("system:getInfo"),
@@ -66,5 +83,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   license: {
     getStatus: () => ipcRenderer.invoke("license:getStatus"),
     activate: (key) => ipcRenderer.invoke("license:activate", key),
-  }
+  },
+  updates: {
+    install: () => ipcRenderer.invoke("update:install"),
+    onAvailable: (callback) => subscribe("update-available", callback),
+    onProgress: (callback) => subscribe("update-progress", callback),
+    onDownloaded: (callback) => subscribe("update-downloaded", callback),
+  },
 });

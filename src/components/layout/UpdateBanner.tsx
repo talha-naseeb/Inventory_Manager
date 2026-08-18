@@ -15,9 +15,7 @@ export const UpdateBanner: React.FC = () => {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!window.electronAPI) return;
-
-    // Listen for update events dispatched from preload via window events
+    if (!window.electronAPI?.updates) return;
 
     const onUpdateAvailable = (info: UpdateInfo) => {
       setVersion(info.version);
@@ -35,20 +33,19 @@ export const UpdateBanner: React.FC = () => {
       setState("ready");
     };
 
-    // Register custom window events (dispatched by preload)
-    window.addEventListener("update-available", (e: any) => onUpdateAvailable(e.detail));
-    window.addEventListener("update-progress", (e: any) => onUpdateProgress(e.detail));
-    window.addEventListener("update-downloaded", (e: any) => onUpdateDownloaded(e.detail));
+    const unsubscribeAvailable = window.electronAPI.updates.onAvailable(onUpdateAvailable);
+    const unsubscribeProgress = window.electronAPI.updates.onProgress(onUpdateProgress);
+    const unsubscribeDownloaded = window.electronAPI.updates.onDownloaded(onUpdateDownloaded);
 
     return () => {
-      window.removeEventListener("update-available", (e: any) => onUpdateAvailable(e.detail));
-      window.removeEventListener("update-progress", (e: any) => onUpdateProgress(e.detail));
-      window.removeEventListener("update-downloaded", (e: any) => onUpdateDownloaded(e.detail));
+      unsubscribeAvailable();
+      unsubscribeProgress();
+      unsubscribeDownloaded();
     };
   }, []);
 
   const handleInstall = () => {
-    window.electronAPI?.invoke("update:install");
+    void window.electronAPI?.updates.install();
   };
 
   if (dismissed || state === "idle") return null;
@@ -92,7 +89,7 @@ export const UpdateBanner: React.FC = () => {
               Restart & Install
             </button>
           )}
-          <button onClick={() => setDismissed(true)} className='opacity-70 hover:opacity-100 transition-opacity'>
+          <button type='button' aria-label='Dismiss update notification' onClick={() => setDismissed(true)} className='opacity-70 hover:opacity-100 transition-opacity'>
             <X size={16} />
           </button>
         </div>

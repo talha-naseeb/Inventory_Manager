@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import type { ActivityLog } from "../../types";
 import { dbService } from "../../services/database";
 import { ShoppingBag, Box, UserCheck, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -16,11 +16,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ onNavigate }) => {
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 10;
 
-  useEffect(() => {
-    loadData();
-  }, [page]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [data, count] = await Promise.all([dbService.getAllActivity(PAGE_SIZE, page * PAGE_SIZE), dbService.getActivityCount()]);
@@ -31,7 +27,11 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ onNavigate }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 

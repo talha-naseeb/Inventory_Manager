@@ -1,0 +1,23 @@
+---
+description: Enforce the approved sequential remediation and testing plan
+alwaysApply: true
+---
+
+# Mandatory Phased Delivery Rule
+
+- Read `docs/IMPLEMENTATION_PLAN.md` before planning or changing this repository.
+- Treat that document as the controlling scope, sequence, test plan, and definition of done.
+- Work only on the current authorized phase in its Progress Register.
+- Do not begin, partially implement, or bundle work from a later phase.
+- Preserve existing user changes and inspect the working tree before editing.
+- Never reset, discard, or rewrite unrelated work to make a phase pass.
+- Add unit tests for changed business logic and regression tests for fixed defects.
+- Run every automated check required by the current phase.
+- Do not weaken, delete, skip, or mark a test flaky merely to obtain a passing result.
+- After automated tests pass, provide the owner with the phase's manual checklist.
+- A phase remains incomplete until the owner explicitly confirms manual acceptance.
+- Update the Progress Register only after evidence is recorded and the owner approves.
+- Do not move to the next phase without explicit owner approval.
+- If blocked, stop and report the exact blocker; do not expand scope silently.
+- Emergency work outside the current phase requires explicit owner authorization and must be recorded in the plan.
+- At phase completion, provide the report defined in the plan, including commands, results, defects, risks, and approval status.

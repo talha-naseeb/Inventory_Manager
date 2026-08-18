@@ -1,17 +1,17 @@
 import React, { useState } from "react";
-import { Database, Trash2, AlertTriangle, Layers, ShoppingBag, Users } from "lucide-react";
+import { Database, Trash2, AlertTriangle, Layers, ShoppingBag, Users, Download, Upload } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { dbService } from "../../services/database";
 import { cn } from "../../lib/utils";
 import { useAuthStore } from "../../store/useAuthStore";
 
-type ActionType = "inventory" | "sales" | "customers" | "full";
+type ActionType = "inventory" | "sales" | "customers" | "full" | "backup" | "restore";
 
 export const DatabaseSettings: React.FC = () => {
   const [confirmingAction, setConfirmingAction] = useState<ActionType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const currentStaff = useAuthStore((state) => state.currentStaff);
 
   const handleAction = async (type: ActionType) => {
@@ -32,13 +32,26 @@ export const DatabaseSettings: React.FC = () => {
         case "full":
           result = await dbService.factoryReset(currentStaff?.id);
           break;
+        case "backup":
+          result = await dbService.backup();
+          if (result?.success && result.path) {
+            setStatusMsg({ type: "success", text: `Backup saved to: ${result.path}` });
+            setConfirmingAction(null);
+            setIsProcessing(false);
+            return;
+          }
+          break;
+        case "restore":
+          result = await dbService.restore();
+          // If successful, the app will restart, so we don't need to handle it here
+          break;
       }
 
       if (result?.success) {
-        setStatusMsg({ type: "success", text: "Data cleared successfully!" });
+        setStatusMsg({ type: "success", text: "Action completed successfully!" });
         setConfirmingAction(null);
-      } else {
-        setStatusMsg({ type: "error", text: "Failed to clear data." });
+      } else if (result?.error) {
+        setStatusMsg({ type: "error", text: result.error });
       }
     } catch (error) {
       console.error("Maintenance action failed:", error);
@@ -86,6 +99,51 @@ export const DatabaseSettings: React.FC = () => {
 
   return (
     <div className='space-y-6'>
+      <Card className='border-none shadow-sm dark:bg-dark-surface'>
+        <CardHeader className='pb-4 border-b border-slate-50 dark:border-dark-border'>
+          <div className='flex items-center gap-3'>
+            <div className='p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg'>
+              <Download size={20} />
+            </div>
+            <div>
+              <CardTitle className='text-lg'>Backup & Restore</CardTitle>
+              <p className='text-xs text-slate-500'>Protect your data with local backups</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className='pt-6'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <div className='p-4 rounded-2xl bg-slate-50/50 border border-slate-100 dark:border-dark-border flex flex-col justify-between'>
+              <div className='mb-4'>
+                <div className='flex items-center gap-2 mb-2'>
+                  <Download size={20} className='text-blue-600' />
+                  <h4 className='font-bold text-slate-800 dark:text-slate-100'>Create Backup</h4>
+                </div>
+                <p className='text-xs text-slate-500 leading-relaxed'>Creates a complete copy of your local database. Save this to a USB drive or cloud storage.</p>
+              </div>
+              <Button variant='outline' size='sm' className='w-full' onClick={() => handleAction("backup")} disabled={isProcessing}>
+                <Download size={14} className='mr-2' />
+                {isProcessing && confirmingAction === "backup" ? "Backing up..." : "Download Backup"}
+              </Button>
+            </div>
+
+            <div className='p-4 rounded-2xl bg-slate-50/50 border border-slate-100 dark:border-dark-border flex flex-col justify-between'>
+              <div className='mb-4'>
+                <div className='flex items-center gap-2 mb-2'>
+                  <Upload size={20} className='text-indigo-600' />
+                  <h4 className='font-bold text-slate-800 dark:text-slate-100'>Restore Database</h4>
+                </div>
+                <p className='text-xs text-slate-500 leading-relaxed'>Restore from a previously created backup. <b>Warning:</b> This will overwrite current data and restart the app.</p>
+              </div>
+              <Button variant='outline' size='sm' className='w-full' onClick={() => handleAction("restore")} disabled={isProcessing}>
+                <Upload size={14} className='mr-2' />
+                Restore Backup
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className='border-none shadow-sm dark:bg-dark-surface'>
         <CardHeader className='pb-4 border-b border-slate-50 dark:border-dark-border'>
           <div className='flex items-center gap-3'>

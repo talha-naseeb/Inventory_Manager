@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Globe, DollarSign, Clock, Store, Check } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
+import { Input } from "../ui/Input";
 import { useThemeStore } from "../../store/useThemeStore";
 import { BUSINESS_PROFILE_TYPES, type BusinessType } from "../../config/businessProfiles";
 import { useBusinessProfile } from "../../hooks/useBusinessProfile";
@@ -97,6 +98,13 @@ export const SystemSettings: React.FC = () => {
     setBusinessDetails({
       ...businessDetails,
       currency: e.target.value,
+    });
+  };
+
+  const handleTaxToggle = (enabled: boolean) => {
+    setBusinessDetails({
+      ...businessDetails,
+      taxEnabled: enabled,
     });
   };
 
@@ -284,6 +292,81 @@ export const SystemSettings: React.FC = () => {
               <p className='text-[10px] text-slate-400 px-1'>Standard cut length for "Suits" if not specified per product.</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className='border-none shadow-sm dark:bg-dark-surface'>
+        <CardHeader className='pb-4 border-b border-slate-50 dark:border-dark-border'>
+          <div className='flex items-center gap-3'>
+            <div className='p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg'>
+              <Check size={20} />
+            </div>
+            <div>
+              <CardTitle className='text-lg'>Tax Compliance</CardTitle>
+              <p className='text-xs text-slate-500'>Configure GST/VAT and tax invoice settings</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className='pt-6 space-y-6'>
+          <div className='flex items-center justify-between p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-dark-border'>
+            <div>
+              <p className='text-sm font-bold text-slate-800 dark:text-slate-100'>Enable Tax Calculation</p>
+              <p className='text-xs text-slate-500'>Apply taxes to orders and show on receipts</p>
+            </div>
+            <button
+              type='button'
+              role='switch'
+              aria-checked={Boolean(businessDetails.taxEnabled)}
+              aria-label='Enable tax calculation'
+              onClick={() => handleTaxToggle(!businessDetails.taxEnabled)}
+              className={cn(
+                "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                businessDetails.taxEnabled ? "bg-primary" : "bg-slate-200 dark:bg-slate-700"
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                  businessDetails.taxEnabled ? "translate-x-6" : "translate-x-1"
+                )}
+              />
+            </button>
+          </div>
+
+          {businessDetails.taxEnabled && (
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-2'>
+              <div className='space-y-2'>
+                <label htmlFor='tax-label' className='text-xs font-black text-slate-400 uppercase tracking-widest px-1'>Tax Label</label>
+                <Input
+                  id='tax-label'
+                  value={businessDetails.taxLabel || "GST"}
+                  onChange={(e) => setBusinessDetails({ ...businessDetails, taxLabel: e.target.value })}
+                  placeholder='e.g. GST, VAT'
+                />
+              </div>
+              <div className='space-y-2'>
+                <label htmlFor='tax-number' className='text-xs font-black text-slate-400 uppercase tracking-widest px-1'>Tax Number (GSTIN/VAT)</label>
+                <Input
+                  id='tax-number'
+                  value={businessDetails.taxNumber || ""}
+                  onChange={(e) => setBusinessDetails({ ...businessDetails, taxNumber: e.target.value })}
+                  placeholder='e.g. 24AAAAA0000A1Z5'
+                />
+              </div>
+              <div className='space-y-2'>
+                <label htmlFor='tax-rate-default' className='text-xs font-black text-slate-400 uppercase tracking-widest px-1'>Default Rate (%)</label>
+                <Input
+                  id='tax-rate-default'
+                  type='number'
+                  min='0'
+                  max='100'
+                  step='0.01'
+                  value={businessDetails.taxRateDefault || 0}
+                  onChange={(e) => setBusinessDetails({ ...businessDetails, taxRateDefault: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,0 +1,29 @@
+name: Release checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    name: Validate desktop application
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      # Phase 0 assumption: GitHub Actions is the CI provider and Node 22 is the
+      # supported validation runtime. This workflow validates only; it does not deploy.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run release gate
+        run: npm run release:check

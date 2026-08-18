@@ -16,6 +16,8 @@ export interface Product {
   unit?: string;
   meters_per_unit?: number;
   metersPerUnit?: number;
+  hsn_code?: string;
+  tax_rate?: number;
   lowStockAlert?: number;
 }
 

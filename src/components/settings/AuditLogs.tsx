@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import type { ActivityLog } from "../../types";
 import { dbService } from "../../services/database";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
@@ -12,11 +12,7 @@ export const AuditLogs: React.FC = () => {
   const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 50;
 
-  useEffect(() => {
-    loadLogs();
-  }, [page]);
-
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
       const [data, count] = await Promise.all([dbService.getAllActivity(PAGE_SIZE, page * PAGE_SIZE), dbService.getActivityCount()]);
@@ -27,7 +23,11 @@ export const AuditLogs: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page]);
+
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 

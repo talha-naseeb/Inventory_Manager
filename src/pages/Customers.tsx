@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Search, UserPlus, Phone, Mail, MapPin,
   ShoppingBag, Trash2, Edit2, ChevronRight,
@@ -40,20 +40,7 @@ export default function Customers() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const { isAdmin, isOwner } = usePermissions();
 
-  useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  useEffect(() => {
-    const q = search.toLowerCase();
-    setFiltered(customers.filter((c) =>
-      c.name.toLowerCase().includes(q) ||
-      (c.phone || "").includes(q) ||
-      (c.email || "").toLowerCase().includes(q)
-    ));
-  }, [search, customers]);
-
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
     setIsLoading(true);
     try {
       const rows = await dbService.searchCustomers(search);
@@ -63,7 +50,20 @@ export default function Customers() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [search]);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  useEffect(() => {
+    const q = search.toLowerCase();
+    setFiltered(customers.filter((c) =>
+      c.name.toLowerCase().includes(q) ||
+      (c.phone || "").includes(q) ||
+      (c.email || "").toLowerCase().includes(q)
+    ));
+  }, [search, customers]);
 
   const loadCustomerOrders = async (customerId: string) => {
     setLoadingOrders(true);

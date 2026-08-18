@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, Package, Users, BarChart2, FileText, Download, DollarSign, ShoppingBag, Award, ArrowDownRight, Printer } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
@@ -112,11 +112,7 @@ export const Reports: React.FC = () => {
   const [productStats, setProductStats] = useState<ProductStat[]>([]);
   const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
 
-  useEffect(() => {
-    loadReportData();
-  }, [datePreset]);
-
-  const loadReportData = async () => {
+  const loadReportData = useCallback(async () => {
     setIsLoading(true);
     const range = getDateRange(datePreset);
     const start = range?.start;
@@ -176,7 +172,11 @@ export const Reports: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [datePreset]);
+
+  useEffect(() => {
+    loadReportData();
+  }, [loadReportData]);
 
   const allTabs = [
     { id: "sales" as TabType, label: "Sales Summary", icon: <TrendingUp size={16} />, adminOnly: false },

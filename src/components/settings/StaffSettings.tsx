@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -32,11 +32,7 @@ export const StaffSettings: React.FC = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadStaff();
-  }, []);
-
-  const loadStaff = async () => {
+  const loadStaff = useCallback(async () => {
     setLoading(true);
     try {
       if (window.electronAPI?.staff?.getAll) {
@@ -48,7 +44,11 @@ export const StaffSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [storeId]);
+
+  useEffect(() => {
+    loadStaff();
+  }, [loadStaff]);
 
   const openCreate = () => {
     setEditing(null);

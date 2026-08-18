@@ -104,12 +104,19 @@ export const dbService = {
     }
   },
 
-  async enqueueSync(actionType: string, entityId: string, payload: Record<string, unknown>) {
+  async enqueueSync(actionType: string, entityId: string, payload: Record<string, unknown>, baseVersion?: Record<string, unknown>) {
     try {
       const id = crypto.randomUUID();
+      const payloadStoreId = typeof payload.store_id === "string" && payload.store_id.trim()
+        ? payload.store_id.trim()
+        : this.getStoreId();
+      
+      // Include base version for conflict detection
+      const baseVersionJson = baseVersion ? JSON.stringify(baseVersion) : null;
+      
       await this.execute(
-        "INSERT INTO sync_queue (id, action_type, entity_id, payload_json, status) VALUES (?, ?, ?, ?, ?)",
-        [id, actionType, entityId, JSON.stringify(payload), "PENDING"],
+        `INSERT INTO sync_queue (id, store_id, action_type, entity_id, payload_json, status, base_version_json, conflict_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, payloadStoreId, actionType, entityId, JSON.stringify({ ...payload, store_id: payloadStoreId }), "PENDING", baseVersionJson, "none"],
       );
       return id;
     } catch (error) {
@@ -147,16 +154,30 @@ export const dbService = {
   async upsertProduct(product: Record<string, unknown>): Promise<any> {
     if (!window.electronAPI?.products) return null;
     const storeId = this.getStoreId();
+    
+    // Fetch current version for conflict detection
+    let baseVersion: Record<string, unknown> | undefined;
+    const existingId = product.id as string;
+    if (existingId) {
+      const existing = await this.query("SELECT * FROM products WHERE id = ? AND store_id = ?", [existingId, storeId]);
+      if (existing.length > 0) baseVersion = existing[0];
+    }
+    
     const id = await window.electronAPI.products.upsert({ product, store_id: storeId });
-    await this.enqueueSync("PRODUCT_UPSERT", String(id || product.id), { ...product, id: id || product.id, store_id: storeId });
+    await this.enqueueSync("PRODUCT_UPSERT", String(id || product.id), { ...product, id: id || product.id, store_id: storeId }, baseVersion);
     return id;
   },
 
   async deleteProduct(id: string): Promise<any> {
     if (!window.electronAPI?.products) return null;
     const storeId = this.getStoreId();
+    
+    // Fetch current version for conflict detection
+    const existing = await this.query("SELECT * FROM products WHERE id = ? AND store_id = ?", [id, storeId]);
+    const baseVersion = existing.length > 0 ? existing[0] : undefined;
+    
     const result = await window.electronAPI.products.delete({ id, store_id: storeId });
-    await this.enqueueSync("PRODUCT_DELETE", id, { id, store_id: storeId });
+    await this.enqueueSync("PRODUCT_DELETE", id, { id, store_id: storeId }, baseVersion);
     return result;
   },
 
@@ -177,22 +198,32 @@ export const dbService = {
     const storeId = this.getStoreId();
     const id = await window.electronAPI.customers.create({ customer, store_id: storeId });
     if (id) {
-      await this.enqueueSync("CUSTOMER_CREATE", String(id), { ...customer, id, store_id: storeId });
+      await this.enqueueSync("CUSTOMER_CREATE", String(id), { ...customer, id, store_id: storeId }, undefined); // No base version for creates
     }
     return id;
   },
 
   async updateCustomer(id: string, customer: CustomerInput) {
     const storeId = this.getStoreId();
+    
+    // Fetch current version for conflict detection
+    const existing = await this.query("SELECT * FROM customers WHERE id = ? AND store_id = ?", [id, storeId]);
+    const baseVersion = existing.length > 0 ? existing[0] : undefined;
+    
     const result = await this.execute("UPDATE customers SET name=?, phone=?, email=?, address=? WHERE id=? AND store_id=?", [customer.name, customer.phone, customer.email, customer.address, id, storeId]);
-    await this.enqueueSync("CUSTOMER_UPDATE", id, { id, ...customer, store_id: storeId });
+    await this.enqueueSync("CUSTOMER_UPDATE", id, { id, ...customer, store_id: storeId }, baseVersion);
     return result;
   },
 
   async deleteCustomer(id: string) {
     const storeId = this.getStoreId();
+    
+    // Fetch current version for conflict detection
+    const existing = await this.query("SELECT * FROM customers WHERE id = ? AND store_id = ?", [id, storeId]);
+    const baseVersion = existing.length > 0 ? existing[0] : undefined;
+    
     const result = await this.execute("DELETE FROM customers WHERE id=? AND store_id=?", [id, storeId]);
-    await this.enqueueSync("CUSTOMER_DELETE", id, { id, store_id: storeId });
+    await this.enqueueSync("CUSTOMER_DELETE", id, { id, store_id: storeId }, baseVersion);
     return result;
   },
 
@@ -215,21 +246,31 @@ export const dbService = {
     const storeId = this.getStoreId();
     const brandData = { name, description: description || null, store_id: storeId };
     const id = await window.electronAPI.brands.create(brandData);
-    await this.enqueueSync("BRAND_UPSERT", id, { id, ...brandData });
+    await this.enqueueSync("BRAND_UPSERT", id, { id, ...brandData }, undefined); // No base for creates
     return id;
   },
 
   async deleteBrand(id: string): Promise<any> {
     const storeId = this.getStoreId();
+    
+    // Fetch current version for conflict detection
+    const existing = await this.query("SELECT * FROM brands WHERE id = ? AND store_id = ?", [id, storeId]);
+    const baseVersion = existing.length > 0 ? existing[0] : undefined;
+    
     const result = await this.execute("DELETE FROM brands WHERE id = ? AND store_id = ?", [id, storeId]);
-    await this.enqueueSync("BRAND_DELETE", id, { id, store_id: storeId });
+    await this.enqueueSync("BRAND_DELETE", id, { id, store_id: storeId }, baseVersion);
     return result;
   },
 
   async updateBrand(id: string, data: { name: string; description?: string | null }): Promise<any> {
     const storeId = this.getStoreId();
+    
+    // Fetch current version for conflict detection
+    const existing = await this.query("SELECT * FROM brands WHERE id = ? AND store_id = ?", [id, storeId]);
+    const baseVersion = existing.length > 0 ? existing[0] : undefined;
+    
     const result = await this.execute("UPDATE brands SET name = ?, description = ? WHERE id = ? AND store_id = ?", [data.name, data.description || null, id, storeId]);
-    await this.enqueueSync("BRAND_UPSERT", id, { id, name: data.name, description: data.description || null, store_id: storeId });
+    await this.enqueueSync("BRAND_UPSERT", id, { id, name: data.name, description: data.description || null, store_id: storeId }, baseVersion);
     return result;
   },
 
@@ -555,6 +596,20 @@ export const dbService = {
       return window.electronAPI.database.clearData({ type: "full", store_id: this.getStoreId(), staff_id: staffId });
     }
     return { success: false, error: "Database maintenance API unavailable" };
+  },
+
+  async backup() {
+    if (window.electronAPI?.database?.backup) {
+      return window.electronAPI.database.backup();
+    }
+    return { success: false, error: "Backup API unavailable" };
+  },
+
+  async restore() {
+    if (window.electronAPI?.database?.restore) {
+      return window.electronAPI.database.restore();
+    }
+    return { success: false, error: "Restore API unavailable" };
   },
 
   getStoreId() {

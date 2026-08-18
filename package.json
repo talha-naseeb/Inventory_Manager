@@ -2,43 +2,73 @@
   "name": "inventoriman",
   "private": true,
   "version": "0.0.0",
+  "description": "Offline-first desktop POS and inventory management system.",
+  "author": "InventoriMan",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
+    "check:electron": "node scripts/check-electron-syntax.cjs",
     "rebuild:node": "npm rebuild better-sqlite3",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "test": "npm run rebuild:node && node --test tests/*.test.cjs",
     "posttest": "npm run rebuild:electron",
+    "pretest:electron-smoke": "npm run rebuild:electron",
+    "test:electron-smoke": "node scripts/electron-smoke.cjs",
+    "release:check": "npm run check:electron && npm run lint && npm run typecheck && npm test && npm run build && npm run test:electron-smoke",
     "preview": "vite preview",
     "preelectron": "npm run rebuild:electron",
     "electron": "env -u ELECTRON_RUN_AS_NODE electron .",
     "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && npm run electron\"",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:win:arm64": "npm run build && electron-builder --win --arm64"
   },
   "build": {
     "appId": "com.inventoriman.pos",
     "productName": "Inventory Manager POS",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
     "files": [
-      "dist/**/*",
-      "electron/**/*",
+      {
+        "from": "dist",
+        "to": "dist",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "electron",
+        "to": "electron",
+        "filter": [
+          "**/*"
+        ]
+      },
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.business"
+    },
     "win": {
-      "target": "nsis",
-      "icon": "public/icon.png"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico"
+      "createDesktopShortcut": true
     }
   },
   "dependencies": {
@@ -49,6 +79,7 @@
     "electron-log": "^5.4.3",
     "electron-updater": "^6.7.3",
     "html5-qrcode": "^2.3.8",
+    "jsbarcode": "^3.12.3",
     "react": "^19.2.0",
     "react-date-range": "^2.0.1",
     "react-dom": "^19.2.0",
@@ -62,6 +93,7 @@
     "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.18",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/jsbarcode": "^3.11.4",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

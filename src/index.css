@@ -89,8 +89,4 @@ body {
     margin: 0;
   }
 
-  @page :report {
-    size: A4 portrait;
-    margin: 15mm;
-  }
 }

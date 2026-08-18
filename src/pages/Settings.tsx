@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AuditLogs } from "../components/settings/AuditLogs";
-import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key, Database as DatabaseSettingsIcon, Cloud } from "lucide-react";
+import { ConflictResolution } from "../components/settings/ConflictResolution";
+import { FileText, Palette, Store, Users, Settings as SettingsIcon, Sliders, Key, Database as DatabaseSettingsIcon, Cloud, GitBranch } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ThemeSettings } from "../components/settings/ThemeSettings";
 import { BusinessSettings } from "../components/settings/BusinessSettings";
@@ -12,7 +13,7 @@ import { DatabaseSettings } from "../components/settings/DatabaseSettings";
 import { CloudSyncSettings } from "../components/settings/CloudSyncSettings";
 import { usePermissions } from "../hooks/usePermissions";
 
-type TabType = "theme" | "business" | "system" | "staff" | "license" | "logs" | "database" | "cloud";
+type TabType = "theme" | "business" | "system" | "staff" | "license" | "logs" | "database" | "cloud" | "conflicts";
 
 interface SettingsProps {
   initialTab?: string;
@@ -24,6 +25,7 @@ const allTabs: Array<{ id: TabType; label: string; icon: React.ReactNode; adminO
   { id: "system", label: "System Preferences", icon: <Sliders size={18} />, adminOnly: false },
   { id: "staff", label: "Staff & Roles", icon: <Users size={18} />, adminOnly: true },
   { id: "cloud", label: "Cloud Sync", icon: <Cloud size={18} />, adminOnly: true },
+  { id: "conflicts", label: "Sync Conflicts", icon: <GitBranch size={18} />, adminOnly: true },
   { id: "database", label: "Database", icon: <DatabaseSettingsIcon size={18} />, adminOnly: true },
   { id: "license", label: "License & System", icon: <Key size={18} />, adminOnly: true },
   { id: "logs", label: "Audit Logs", icon: <FileText size={18} />, adminOnly: true },
@@ -87,6 +89,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab = "theme" }) => {
             {safeActiveTab === "system" && <SystemSettings />}
             {safeActiveTab === "staff" && <StaffSettings />}
             {safeActiveTab === "cloud" && <CloudSyncSettings />}
+            {safeActiveTab === "conflicts" && <ConflictResolution />}
             {safeActiveTab === "database" && <DatabaseSettings />}
             {safeActiveTab === "license" && <LicenseSettings />}
             {safeActiveTab === "logs" && <AuditLogs />}

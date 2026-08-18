@@ -32,6 +32,8 @@ const db = {
   get: (sql, params = []) => dispatch("get", sql, params),
   run: (sql, params = []) => dispatch("run", sql, params),
   transaction: (queries) => dispatch("transaction", null, queries),
+  backup: (destPath) => dispatch("backup", null, [destPath]),
+  close: () => dispatch("close"),
   
   // Helper for one-off manual preparation logic if needed
   prepare: (sql) => ({
@@ -61,6 +63,7 @@ async function initDb() {
     console.log("✓ DB: All migrations applied successfully");
   } catch (err) {
     console.error("DB Initialization Error:", err);
+    throw err;
   }
 }
 
