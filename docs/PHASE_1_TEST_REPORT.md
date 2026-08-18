@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-18
 **Branch:** `codex/phase-1-security-boundary`
-**Status:** Automated gate passed — owner manual acceptance pending
+**Status:** Complete — automated and manual gates passed; owner approved
 
 ## Implemented scope
 
@@ -29,7 +29,7 @@ npm run release:check
 
 | Check | Result |
 |---|---|
-| Electron syntax | Passed — 23 `.cjs` files |
+| Electron syntax | Passed — 24 `.cjs` files |
 | ESLint | Passed — 0 errors |
 | TypeScript | Passed — 0 errors |
 | Node unit/integration/security tests | Passed — 50/50 |
@@ -60,38 +60,38 @@ Use a safe test database or backup current data first, then start the app with `
 
 ### Enrollment and login
 
-- [ ] On a fresh test database, confirm the app asks to set up the owner instead of accepting a default PIN.
-- [ ] Enter mismatching PINs and confirm setup remains blocked with a clear message.
-- [ ] Create the owner, log out, and log back in with the new PIN.
-- [ ] Enter an incorrect PIN five times and confirm login is temporarily locked.
-- [ ] Restart after successful enrollment and confirm the enrollment form cannot be opened again.
+- [x] On a fresh test database, confirm the app asks to set up the owner instead of accepting a default PIN.
+- [x] Enter mismatching PINs and confirm setup remains blocked with a clear message.
+- [x] Create the owner, log out, and log back in with the new PIN.
+- [x] Enter an incorrect PIN five times and confirm login is temporarily locked.
+- [x] Restart after successful enrollment and confirm the enrollment form cannot be opened again.
 
 ### Create the role matrix
 
-- [ ] As owner, create one admin, manager, and cashier with unique PINs.
-- [ ] Log out and log in separately as each account.
+- [x] As owner, create one admin, manager, and cashier with unique PINs.
+- [x] Log out and log in separately as each account.
 
 ### Cashier
 
-- [ ] Confirm POS, sales lookup, and customer work are available.
-- [ ] Confirm inventory management, procurement, reports, staff, database maintenance, cloud settings, and refund/return processing are unavailable or denied.
+- [x] Confirm POS, sales lookup, and customer work are available.
+- [x] Confirm inventory management, procurement, reports, staff, database maintenance, cloud settings, and refund/return processing are unavailable or denied.
 
 ### Manager
 
-- [ ] Confirm POS, inventory editing/adjustment, procurement, reports, and return processing work.
-- [ ] Confirm product deletion, staff management, business-setting edits, database maintenance, cloud activation, license activation, and update installation are unavailable or denied.
+- [x] Confirm POS, inventory editing/adjustment, procurement, reports, and return processing work.
+- [x] Confirm product deletion, staff management, business-setting edits, database maintenance, cloud activation, license activation, and update installation are unavailable or denied.
 
 ### Admin and owner
 
-- [ ] Confirm administrative settings, staff management, backups, and authorized destructive operations work after confirmation.
-- [ ] Confirm neither account can delete or deactivate its own active administrative session through staff management.
+- [x] Confirm administrative settings, staff management, backups, and authorized destructive operations work after confirmation.
+- [x] Confirm neither account can delete or deactivate its own active administrative session through staff management.
 
 ### Restart and regression
 
-- [ ] Complete one safe allowed action for each role, close the app, reopen it, and confirm data is preserved.
-- [ ] Confirm no blank page, unexpected external window, clipped enrollment form, or horizontal scrolling appears.
-- [ ] Report the failed checklist item, role, screen, and exact action if anything behaves unexpectedly.
+- [x] Complete one safe allowed action for each role, close the app, reopen it, and confirm data is preserved.
+- [x] Confirm no blank page, unexpected external window, clipped enrollment form, or horizontal scrolling appears.
+- [x] Report the failed checklist item, role, screen, and exact action if anything behaves unexpectedly.
 
 ## Owner approval
 
-Pending. Phase 2 remains blocked until the owner confirms this checklist and explicitly approves moving forward.
+Approved by the project owner on 2026-08-18. Phase 1 is complete and Phase 2 is authorized.

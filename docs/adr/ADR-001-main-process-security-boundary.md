@@ -74,4 +74,4 @@ This conflicts with the offline-first requirement and remains appropriate only f
 3. [x] Replace renderer SQL access with fixed domain APIs.
 4. [x] Remove generic preload invocation and raw database channels.
 5. [x] Add CSP and navigation/window restrictions.
-6. [ ] Complete automated and owner role-matrix acceptance tests.
+6. [x] Complete automated and owner role-matrix acceptance tests.
