@@ -272,7 +272,7 @@ export const CloudSyncSettings: React.FC = () => {
     setSaving(true);
     setMsg(null);
     try {
-      const result = await window.electronAPI.invoke("sync:saveSettings", {
+      const result = await window.electronAPI.sync.saveSettings({
         url: supabaseUrl.trim(),
         key: supabaseKey.trim(),
       });
@@ -353,7 +353,7 @@ export const CloudSyncSettings: React.FC = () => {
     setTesting(true);
     setMsg(null);
     try {
-      const result = await window.electronAPI.invoke("sync:testConnection");
+      const result = await window.electronAPI.sync.testConnection();
       if (result?.success) {
         showMsg("success", "Connection successful! Supabase is reachable.");
       } else {

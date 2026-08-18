@@ -117,39 +117,12 @@ export const Reports: React.FC = () => {
     const range = getDateRange(datePreset);
     const start = range?.start;
     const end = range?.end;
-    const dateFilter = start && end ? "WHERE created_at BETWEEN ? AND ?" : "";
-    const joinDateFilter = start && end ? "WHERE o.created_at BETWEEN ? AND ?" : "";
-    const params = start && end ? [start, end] : [];
-
     try {
       const [sales, brands, products, staff] = await Promise.all([
-        dbService.getOne<any>(
-          `SELECT 
-            COALESCE(SUM(total), 0) as totalRevenue,
-            COUNT(*) as totalOrders,
-            COALESCE(SUM(discount), 0) as totalDiscount,
-            COALESCE(SUM(tax), 0) as totalTax,
-            COALESCE(AVG(total), 0) as avgOrderValue,
-            COALESCE(SUM(CASE WHEN payment_method='cash' THEN total ELSE 0 END), 0) as cashSales,
-            COALESCE(SUM(CASE WHEN payment_method='card' THEN total ELSE 0 END), 0) as cardSales,
-            COALESCE(SUM(CASE WHEN payment_method='bank' THEN total ELSE 0 END), 0) as bankSales
-           FROM orders ${dateFilter}`,
-          params,
-        ),
+        dbService.getSalesSummary(start, end),
         dbService.getSalesByBrand(start, end),
         dbService.getTopProducts(10, start, end),
-        dbService.query<any>(
-          `SELECT 
-            s.name as staffName,
-            COUNT(o.id) as orderCount,
-            COALESCE(SUM(o.total), 0) as revenue
-           FROM orders o
-           LEFT JOIN staff s ON o.staff_id = s.id
-           ${joinDateFilter}
-           GROUP BY o.staff_id, s.name
-           ORDER BY revenue DESC`,
-          params,
-        ),
+        dbService.getStaffSales(start, end),
       ]);
 
       setSalesStats(

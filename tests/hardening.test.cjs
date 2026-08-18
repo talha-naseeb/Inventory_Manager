@@ -467,12 +467,13 @@ test("sync operation mapping covers core queued actions", () => {
   assert.equal(prepareSyncOperation({ actionType: "UNKNOWN", entityId: "x", payload: {} }), null);
 });
 
-test("staff PIN hashes verify without storing the original PIN", async () => {
+test("fresh installs require owner PIN enrollment instead of using a shared default", async () => {
   const db = await migratedDb();
-  const owner = await db.get("SELECT pin, pin_hash FROM staff WHERE role = 'owner'");
+  const owner = await db.get("SELECT pin, pin_hash, requires_pin_setup FROM staff WHERE role = 'owner'");
 
   assert.equal(owner.pin, "");
-  assert.equal(verifyPin("123456", owner.pin_hash), true);
+  assert.equal(owner.pin_hash, null);
+  assert.equal(owner.requires_pin_setup, 1);
 
   const hash = hashPin("654321");
   assert.equal(hash.includes("654321"), false);

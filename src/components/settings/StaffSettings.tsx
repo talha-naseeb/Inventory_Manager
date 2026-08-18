@@ -5,7 +5,6 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Shield, UserPlus, Edit2, Trash2, X, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { useAuthStore } from "../../store/useAuthStore";
 import type { Staff } from "../../types";
 
 const ROLES: Staff["role"][] = ["owner", "admin", "manager", "cashier"];
@@ -20,7 +19,6 @@ const roleBadgeColor: Record<Staff["role"], string> = {
 const emptyForm = { name: "", pin: "", role: "cashier" as Staff["role"], status: "active" as Staff["status"] };
 
 export const StaffSettings: React.FC = () => {
-  const { storeId } = useAuthStore();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,8 +33,8 @@ export const StaffSettings: React.FC = () => {
   const loadStaff = useCallback(async () => {
     setLoading(true);
     try {
-      if (window.electronAPI?.staff?.getAll) {
-        const data = await window.electronAPI.staff.getAll(storeId);
+      if (window.electronAPI?.staff?.list) {
+        const data = await window.electronAPI.staff.list();
         setStaff(data as Staff[]);
       }
     } catch (err) {
@@ -44,7 +42,7 @@ export const StaffSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [storeId]);
+  }, []);
 
   useEffect(() => {
     loadStaff();
@@ -87,18 +85,14 @@ export const StaffSettings: React.FC = () => {
 
     try {
       if (editing) {
-        const result = await window.electronAPI.invoke("api:staff:update", {
+        const result = await window.electronAPI.staff.update({
           id: editing.id,
-          staff: { name: form.name.trim(), role: form.role, status: form.status, pin: form.pin || undefined },
-          store_id: storeId,
+          name: form.name.trim(), role: form.role, status: form.status, pin: form.pin || undefined,
         });
         if (!result?.success) throw new Error(result?.error || "Update failed");
         showSuccess(`${form.name} updated successfully.`);
       } else {
-        const result = await window.electronAPI.invoke("api:staff:create", {
-          staff: { name: form.name.trim(), pin: form.pin, role: form.role },
-          store_id: storeId,
-        });
+        const result = await window.electronAPI.staff.create({ name: form.name.trim(), pin: form.pin, role: form.role });
         if (!result?.success) throw new Error(result?.error || "Create failed");
         showSuccess(`${form.name} added successfully.`);
       }
@@ -113,7 +107,7 @@ export const StaffSettings: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await window.electronAPI.invoke("api:staff:delete", { id, store_id: storeId });
+      await window.electronAPI.staff.delete({ id });
       setDeleteConfirm(null);
       showSuccess("Staff member removed.");
       await loadStaff();

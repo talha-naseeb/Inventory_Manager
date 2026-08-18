@@ -1,4 +1,4 @@
-const { ipcMain, app } = require("electron");
+const { app } = require("electron");
 const { db } = require("./db.cjs");
 const { log } = require("./logger.cjs");
 const { prepareSyncOperation } = require("./syncPayloads.cjs");
@@ -27,98 +27,67 @@ class SyncManager {
     this.session = null;
     this.supabase = null;
     this.realtimeChannel = null;
-    this.setupIpc();
   }
 
-  setupIpc() {
-    ipcMain.handle("sync:getStatus", () => this.getPendingCount());
-    ipcMain.handle("sync:trigger", () => this.processQueue());
+  async getSettings() {
+    const pendingCount = await this.getPendingCount();
+    return {
+      url: this.supabaseUrl || "",
+      isConfigured: !!(this.supabaseUrl && this.supabaseKey),
+      isActivated: this.isActivated(),
+      isAuthenticated: !!this.session?.access_token,
+      storeId: this.storeId || "",
+      storeName: this.storeName || "",
+      userEmail: this.userEmail || "",
+      pendingCount,
+    };
+  }
 
-    ipcMain.handle("auth:signIn", (event, args) => this.signIn(args));
-    ipcMain.handle("auth:signOut", () => this.signOut());
-    ipcMain.handle("auth:getSession", () => this.getSession());
+  async testConnection() {
+    if (!this.isSyncReady()) return { success: false, error: "Supabase is not signed in and activated for a store." };
+    try {
+      const { error } = await this.supabase.from("products").select("id").eq("store_id", this.storeId).limit(1);
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
 
-    // Legacy setter is retained for compatibility but now uses the same validation path.
-    ipcMain.handle("sync:setSettings", async (event, { url, key }) => {
-      return this.saveSyncSettings({ url, key });
-    });
+  async getConflicts() {
+    if (!this.isSyncReady()) return { success: false, error: "Sync not ready" };
+    try {
+      return { success: true, conflicts: await getConflictedItems(db, this.storeId) };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
 
-    // New: get current settings for UI
-    ipcMain.handle("sync:getSettings", async () => {
-      const pendingCount = await this.getPendingCount();
-      return {
-        url: this.supabaseUrl || "",
-        isConfigured: !!(this.supabaseUrl && this.supabaseKey),
-        isActivated: this.isActivated(),
-        isAuthenticated: !!this.session?.access_token,
-        storeId: this.storeId || "",
-        storeName: this.storeName || "",
-        userEmail: this.userEmail || "",
-        pendingCount,
-      };
-    });
+  async resolveConflict(syncItemId, resolution, resolvedData) {
+    if (!this.isSyncReady()) return { success: false, error: "Sync not ready" };
+    try {
+      const result = await manualResolveConflict(db, syncItemId, resolution, resolvedData);
+      if (result.success) this.notifyRenderer();
+      return result;
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
 
-    // New: save Supabase settings to DB + re-init client
-    ipcMain.handle("sync:saveSettings", async (event, { url, key }) => {
-      try {
-        return await this.saveSyncSettings({ url, key });
-      } catch (err) {
-        log.error("SyncManager: Failed to save settings", err);
-        return { success: false, error: err.message };
+  async autoResolveAllConflicts() {
+    if (!this.isSyncReady()) return { success: false, error: "Sync not ready" };
+    try {
+      const conflicts = await getConflictedItems(db, this.storeId);
+      let resolved = 0;
+      for (const conflict of conflicts) {
+        const result = await resolveConflict(db, conflict, "auto");
+        if (result.success) resolved++;
       }
-    });
-
-    // New: test the Supabase connection
-    ipcMain.handle("sync:testConnection", async () => {
-      if (!this.isSyncReady()) return { success: false, error: "Supabase is not signed in and activated for a store." };
-      try {
-        const { error } = await this.supabase.from("products").select("id").eq("store_id", this.storeId).limit(1);
-        if (error) return { success: false, error: error.message };
-        return { success: true };
-      } catch (err) {
-        return { success: false, error: err.message };
-      }
-    });
-
-    // Conflict Resolution IPC handlers
-    ipcMain.handle("sync:getConflicts", async () => {
-      if (!this.isSyncReady()) return { success: false, error: "Sync not ready" };
-      try {
-        const conflicts = await getConflictedItems(db, this.storeId);
-        return { success: true, conflicts };
-      } catch (err) {
-        return { success: false, error: err.message };
-      }
-    });
-
-    ipcMain.handle("sync:resolveConflict", async (event, { syncItemId, resolution, resolvedData }) => {
-      if (!this.isSyncReady()) return { success: false, error: "Sync not ready" };
-      try {
-        const result = await manualResolveConflict(db, syncItemId, resolution, resolvedData);
-        if (result.success) {
-          this.notifyRenderer();
-        }
-        return result;
-      } catch (err) {
-        return { success: false, error: err.message };
-      }
-    });
-
-    ipcMain.handle("sync:autoResolveAllConflicts", async () => {
-      if (!this.isSyncReady()) return { success: false, error: "Sync not ready" };
-      try {
-        const conflicts = await getConflictedItems(db, this.storeId);
-        let resolved = 0;
-        for (const conflict of conflicts) {
-          const result = await resolveConflict(db, conflict, "auto");
-          if (result.success) resolved++;
-        }
-        this.notifyRenderer();
-        return { success: true, resolved };
-      } catch (err) {
-        return { success: false, error: err.message };
-      }
-    });
+      this.notifyRenderer();
+      return { success: true, resolved };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
 
   async saveSyncSettings({ url, key }) {

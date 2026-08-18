@@ -75,11 +75,8 @@ export const POS: React.FC = () => {
     const timer = setTimeout(async () => {
       try {
         const { dbService } = await import("../services/database");
-        const results = await dbService.query<{ id: string; name: string; phone: string | null }>(`SELECT id, name, phone FROM customers WHERE name LIKE ? OR phone LIKE ? LIMIT 6`, [
-          `%${manualName}%`,
-          `%${manualName}%`,
-        ]);
-        setCustomerResults(results);
+        const results = await dbService.searchCustomers(manualName);
+        setCustomerResults(results.slice(0, 6).map((customer) => ({ id: customer.id, name: customer.name, phone: customer.phone || null })));
       } catch {
         setCustomerResults([]);
       }
@@ -121,10 +118,9 @@ export const POS: React.FC = () => {
   const handleOpenCheckout = (method: "cash" | "card" | null = null) => {
     // If manual name typed and save checkbox on, create customer first
     if (!customerId && manualName.trim() && manualName.trim().toLowerCase() !== "cash customer" && saveAsCustomer) {
-      const newId = crypto.randomUUID();
       import("../services/database").then(({ dbService }) => {
-        dbService.execute(`INSERT OR IGNORE INTO customers (id, name) VALUES (?, ?)`, [newId, manualName.trim()]).then(() => {
-          setCustomerId(newId, manualName.trim());
+        dbService.createCustomer({ name: manualName.trim(), phone: "", email: "", address: "" }).then((newId) => {
+          setCustomerId(String(newId), manualName.trim());
           setSelectedCustomerName(manualName.trim());
           setSaveAsCustomer(false);
           setInitialPaymentMethod(method);
@@ -150,9 +146,8 @@ export const POS: React.FC = () => {
       } else {
         // Fallback: search in DB if not in currently fetched products
         const { dbService } = await import("../services/database");
-        const results = await dbService.query<any>(`SELECT * FROM products WHERE sku = ? LIMIT 1`, [sku]);
-        if (results.length > 0) {
-          const p = results[0];
+        const p = await dbService.getProductBySku(sku);
+        if (p) {
           usePOSStore.getState().addItem(
             {
               id: p.id,

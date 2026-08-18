@@ -103,7 +103,7 @@ export const SalesHistory: React.FC<SalesHistoryProps> = ({ onPageChange }) => {
       if (details) {
         setSelectedOrderDetails(details);
         // Fetch linked returns
-        const returns = await dbService.query<any>(`SELECT * FROM returns WHERE order_id = ? ORDER BY created_at DESC`, [orderId]);
+        const returns = await dbService.getOrderReturns(orderId);
         setOrderReturns(returns);
       }
     } catch (error) {

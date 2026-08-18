@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, TrendingUp, TrendingDown, Package } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
-import { useAuthStore } from "../../store/useAuthStore";
 import type { Product } from "../../types";
 import { dbService } from "../../services/database";
 
@@ -24,7 +23,6 @@ const REASONS = [
 ];
 
 export const StockAdjustModal: React.FC<Props> = ({ product, isOpen, onClose, onSuccess }) => {
-  const { storeId, currentStaff } = useAuthStore();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState(REASONS[0]);
@@ -53,28 +51,10 @@ export const StockAdjustModal: React.FC<Props> = ({ product, isOpen, onClose, on
     setSaving(true);
     setError(null);
     try {
-      const result = await window.electronAPI.invoke("api:inventory:adjustStock", {
-        productId: product.id,
-        adjustment,
-        reason: finalReason,
-        staffId: currentStaff?.id || null,
-        store_id: storeId,
-      });
+      const result = await dbService.adjustStock(product.id, adjustment, finalReason);
 
       if (!result?.success) throw new Error(result?.error || "Adjustment failed");
-      const syncLogId = result.logId || crypto.randomUUID();
-      await dbService.enqueueSync("INVENTORY_ADJUST", syncLogId, {
-        id: syncLogId,
-        store_id: storeId,
-        product_id: product.id,
-        action_type: adjustment >= 0 ? "STOCK_IN" : "STOCK_OUT",
-        quantity: Math.abs(adjustment),
-        previous_stock: result.previousStock ?? product.stock,
-        current_stock: result.newStock,
-        reason: finalReason,
-        staff_id: currentStaff?.id || null,
-      });
-      onSuccess(result.newStock);
+      onSuccess(Number(result.newStock));
       handleClose();
     } catch (err: any) {
       setError(err.message || "Adjustment failed.");

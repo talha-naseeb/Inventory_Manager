@@ -115,7 +115,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
       setErrors({});
       if (profile.hasRolls && product) {
         dbService
-          .query<{ id: string; roll_number: string; current_length: number; initial_length: number; unit: string }>("SELECT * FROM rolls WHERE product_id = ? AND status = 'active'", [product.id])
+          .getProductRolls(product.id)
           .then((res) => {
             setRolls(
               res.map((r) => ({
@@ -172,41 +172,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
         tax_rate: parseFloat(formData.tax_rate) || 0,
       };
 
-      if (product) {
-        await dbService.upsertProduct({ ...productData, id: product.id });
-        if (profile.hasRolls) {
-          if (isRollUnit(formData.unit)) {
-            await dbService.execute("DELETE FROM rolls WHERE product_id = ?", [product.id]);
-            for (const roll of rolls) {
-              await dbService.execute("INSERT INTO rolls (id, product_id, roll_number, initial_length, current_length, unit) VALUES (?, ?, ?, ?, ?, ?)", [
-                roll.id || crypto.randomUUID(),
-                product.id,
-                roll.roll_number,
-                parseFloat(roll.initial_length),
-                parseFloat(roll.current_length),
-                formData.unit,
-              ]);
-            }
-          } else {
-            await dbService.execute("DELETE FROM rolls WHERE product_id = ?", [product.id]);
-          }
-        }
-      } else {
-        const productId = crypto.randomUUID();
-        await dbService.upsertProduct({ ...productData, id: productId });
-        if (isRollUnit(productData.unit)) {
-          for (const roll of rolls) {
-            await dbService.execute("INSERT INTO rolls (id, product_id, roll_number, initial_length, current_length, unit) VALUES (?, ?, ?, ?, ?, ?)", [
-              roll.id || crypto.randomUUID(),
-              productId,
-              roll.roll_number,
-              parseFloat(roll.initial_length),
-              parseFloat(roll.current_length),
-              productData.unit,
-            ]);
-          }
-        }
-      }
+      const productId = product?.id || crypto.randomUUID();
+      const savedRolls = profile.hasRolls && isRollUnit(productData.unit)
+        ? rolls.map((roll) => ({
+            id: roll.id || crypto.randomUUID(),
+            roll_number: roll.roll_number,
+            initial_length: parseFloat(roll.initial_length),
+            current_length: parseFloat(roll.current_length),
+            unit: productData.unit,
+          }))
+        : [];
+      await dbService.upsertProduct({ ...productData, id: productId }, savedRolls);
       onSave();
       onClose();
     } catch (error: any) {
@@ -219,7 +195,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onS
 
   const handleImageSelect = async () => {
     if (window.electronAPI) {
-      const filePath = await window.electronAPI.invoke("dialog:openFile");
+      const filePath = await window.electronAPI.files.selectProductImage();
       if (filePath) setFormData({ ...formData, image: filePath });
     }
   };

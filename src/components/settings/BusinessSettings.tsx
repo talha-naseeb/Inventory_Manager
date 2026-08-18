@@ -15,7 +15,7 @@ export const BusinessSettings: React.FC = () => {
 
   const handleLogoUpload = async () => {
     if (window.electronAPI) {
-      const filePath = await window.electronAPI.invoke("dialog:openFile");
+      const filePath = await window.electronAPI.files.selectProductImage();
       if (filePath) setBusinessDetails({ ...businessDetails, logo: filePath });
     }
   };

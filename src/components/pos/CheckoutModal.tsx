@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, CreditCard, Banknote, CheckCircle2, Leaf, Printer } from "lucide-react";
 import { Button } from "../ui/Button";
 import { usePOSStore } from "../../store/usePOSStore";
-import { useAuthStore } from "../../store/useAuthStore";
 import { useThemeStore } from "../../store/useThemeStore";
 import { cn } from "../../lib/utils";
 import { ReceiptPreview } from "./ReceiptPreview";
@@ -18,7 +17,6 @@ interface CheckoutModalProps {
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, onSuccess, initialPaymentMethod }) => {
   const { businessDetails } = useThemeStore();
-  const { currentStaff } = useAuthStore();
   const currency = businessDetails.currency;
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "upi" | null>(null);
   const [balanceOutcome, setBalanceOutcome] = useState<ExchangeBalanceOutcome>("none");
@@ -77,7 +75,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, o
         balanceOutcome: exchangeDraft ? balanceOutcome : undefined,
         originalOrderId: exchangeDraft?.originalOrderId,
       };
-      const orderId = await completeOrder(finalPaymentMethod, currentStaff?.id || null, { balanceOutcome });
+      const orderId = await completeOrder(finalPaymentMethod, { balanceOutcome });
       setReceiptSnapshot({ ...snapshot, orderNo: orderId });
       setIsProcessing(false);
       setIsSuccess(true);

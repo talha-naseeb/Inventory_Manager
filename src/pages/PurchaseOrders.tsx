@@ -44,7 +44,7 @@ export const PurchaseOrders: React.FC = () => {
 
   const fetchSuppliers = useCallback(async () => {
     try {
-      const data = await dbService.query<any>("SELECT * FROM suppliers ORDER BY name ASC");
+      const data = await dbService.listSuppliers();
       setSuppliers(data.map(s => ({
         id: s.id,
         name: s.name,
@@ -60,12 +60,7 @@ export const PurchaseOrders: React.FC = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const data = await dbService.query<any>(`
-        SELECT po.*, s.name as supplier_name
-        FROM purchase_orders po
-        LEFT JOIN suppliers s ON po.supplier_id = s.id
-        ORDER BY po.created_at DESC
-      `);
+      const data = await dbService.listPurchaseOrders();
       setOrders(data.map(o => ({
         id: o.id,
         supplierId: o.supplier_id,
@@ -96,33 +91,7 @@ export const PurchaseOrders: React.FC = () => {
     if (!confirm(`Are you sure you want to receive PO #${po.referenceNumber || po.id.slice(0,8)}? This will increase product stock.`)) return;
     
     try {
-      // 1. Get PO items
-      const items = await dbService.query<any>("SELECT * FROM purchase_order_items WHERE purchase_order_id = ?", [po.id]);
-      
-      // 2. Update stock for each item
-      for (const item of items) {
-        if (item.product_id) {
-          const product = await dbService.getOne<{stock: number}>("SELECT stock FROM products WHERE id = ?", [item.product_id]);
-          if (product) {
-            const newStock = product.stock + item.quantity;
-            await dbService.execute("UPDATE products SET stock = ? WHERE id = ?", [newStock, item.product_id]);
-            
-            // Log inventory change
-            await dbService.execute(
-              "INSERT INTO inventory_logs (id, product_id, action_type, quantity, previous_stock, current_stock, reason) VALUES (?, ?, ?, ?, ?, ?, ?)",
-              [crypto.randomUUID(), item.product_id, "STOCK_IN", item.quantity, product.stock, newStock, `Received from PO #${po.referenceNumber || po.id.slice(0,8)}`]
-            );
-          }
-        }
-      }
-      
-      // 3. Mark PO as received
-      const now = new Date().toISOString();
-      await dbService.execute("UPDATE purchase_orders SET status = 'received', received_at = ? WHERE id = ?", [now, po.id]);
-      
-      // 4. Sync
-      await dbService.enqueueSync("PO_UPDATE", po.id, { id: po.id, status: "received", received_at: now });
-      
+      await dbService.receivePurchaseOrder(po.id);
       fetchOrders();
     } catch (err) {
       console.error("Failed to receive PO:", err);

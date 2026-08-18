@@ -31,7 +31,7 @@ export const POModal: React.FC<POModalProps> = ({ isOpen, onClose, onSave, suppl
         notes: po.notes || ""
       });
       // Fetch items if editing
-      dbService.query("SELECT * FROM purchase_order_items WHERE purchase_order_id = ?", [po.id])
+      dbService.getPurchaseOrderItems(po.id)
         .then(data => setItems(data.map(i => ({
           productId: i.product_id,
           name: i.name,
@@ -88,49 +88,18 @@ export const POModal: React.FC<POModalProps> = ({ isOpen, onClose, onSave, suppl
 
     setIsSubmitting(true);
     try {
-      const poId = po?.id || crypto.randomUUID();
-      const storeId = dbService.getStoreId();
-      
-      // 1. Save PO
-      const poSql = po
-        ? `UPDATE purchase_orders SET supplier_id=?, reference_number=?, notes=?, total_amount=?, version=version+1 WHERE id=? AND store_id=?`
-        : `INSERT INTO purchase_orders (id, store_id, supplier_id, reference_number, notes, total_amount) VALUES (?, ?, ?, ?, ?, ?)`;
-      
-      const poParams = po
-        ? [formData.supplierId, formData.referenceNumber, formData.notes, totalAmount, poId, storeId]
-        : [poId, storeId, formData.supplierId, formData.referenceNumber, formData.notes, totalAmount];
-
-      await dbService.execute(poSql, poParams);
-
-      // 2. Save items (delete and re-insert for simplicity if editing)
-      if (po) {
-        await dbService.execute("DELETE FROM purchase_order_items WHERE purchase_order_id = ?", [poId]);
-      }
-
-      const itemQueries = items.map(item => ({
-        sql: `INSERT INTO purchase_order_items (id, store_id, purchase_order_id, product_id, name, sku, cost_price, quantity, total_cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        params: [crypto.randomUUID(), storeId, poId, item.productId, item.name, item.sku, item.costPrice, item.quantity, item.totalCost]
-      }));
-
-      await dbService.execute("BEGIN TRANSACTION");
-      for (const q of itemQueries) {
-        await dbService.execute(q.sql, q.params);
-      }
-      await dbService.execute("COMMIT");
-
-      // 3. Sync
-      await dbService.enqueueSync("PO_CREATE", poId, {
-        id: poId,
-        store_id: storeId,
-        ...formData,
-        total_amount: totalAmount,
+      await dbService.savePurchaseOrder({
+        id: po?.id,
+        supplierId: formData.supplierId,
+        referenceNumber: formData.referenceNumber,
+        notes: formData.notes,
         items: items.map(i => ({
-          product_id: i.productId,
+          productId: i.productId,
           name: i.name,
           sku: i.sku,
-          cost_price: i.costPrice,
+          costPrice: i.costPrice,
           quantity: i.quantity,
-          total_cost: i.totalCost
+          totalCost: i.totalCost
         }))
       });
 
@@ -139,7 +108,6 @@ export const POModal: React.FC<POModalProps> = ({ isOpen, onClose, onSave, suppl
     } catch (err) {
       console.error("Failed to save PO:", err);
       alert("Failed to save PO.");
-      await dbService.execute("ROLLBACK").catch(() => {});
     } finally {
       setIsSubmitting(false);
     }

@@ -12,7 +12,6 @@ import { LabelPrinterModal } from "../components/inventory/LabelPrinterModal";
 import { dbService } from "../services/database";
 import { usePermissions } from "../hooks/usePermissions";
 import { useBusinessProfile } from "../hooks/useBusinessProfile";
-import { useAuthStore } from "../store/useAuthStore";
 import { cn } from "../lib/utils";
 import type { Product } from "../types";
 
@@ -41,20 +40,10 @@ export const Inventory: React.FC = () => {
   const productPlural = profile.productNoun.plural;
   const productSingular = profile.productNoun.singular;
   const categoryPlural = profile.categoryNoun.endsWith("y") ? `${profile.categoryNoun.slice(0, -1)}ies` : `${profile.categoryNoun}s`;
-  const currentStaff = useAuthStore((state) => state.currentStaff);
 
   const fetchBrands = useCallback(async () => {
     try {
-      const brandsData = await dbService.query<Brand>(`
-        SELECT 
-          b.id, 
-          b.name,
-          COUNT(p.id) as productCount
-        FROM brands b
-        LEFT JOIN products p ON b.id = p.brand_id
-        GROUP BY b.id, b.name
-        ORDER BY b.name
-      `);
+      const brandsData = await dbService.getBrandsWithCounts() as Brand[];
       setBrands(brandsData);
     } catch (error) {
       console.error("Failed to fetch brands:", error);
@@ -64,27 +53,7 @@ export const Inventory: React.FC = () => {
   const fetchInventory = useCallback(async () => {
     try {
       setLoading(true);
-      let query = `
-        SELECT p.*, b.name as brand
-        FROM products p
-        LEFT JOIN brands b ON p.brand_id = b.id
-        WHERE 1=1
-      `;
-      const params: any[] = [];
-
-      if (selectedBrandId) {
-        query += " AND p.brand_id = ?";
-        params.push(selectedBrandId);
-      }
-
-      if (search) {
-        query += " AND (p.name LIKE ? OR p.sku LIKE ?)";
-        params.push(`%${search}%`, `%${search}%`);
-      }
-
-      query += " ORDER BY p.created_at DESC";
-
-      const data = await dbService.query(query, params);
+      const data = await dbService.listProducts({ search, brandId: selectedBrandId || undefined });
       setProducts(
         data.map((p: any) => ({
           id: p.id,
@@ -172,7 +141,7 @@ export const Inventory: React.FC = () => {
     if (!confirm(`Last chance! Delete all ${productPlural}?`)) return;
 
     try {
-      await dbService.clearInventory(currentStaff?.id);
+      await dbService.clearInventory();
 
       fetchInventory();
       fetchBrands(); // Refresh counts

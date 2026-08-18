@@ -47,19 +47,7 @@ export const SupplierModal: React.FC<SupplierModalProps> = ({ isOpen, onClose, o
 
     setIsSubmitting(true);
     try {
-      const id = supplier?.id || crypto.randomUUID();
-      const storeId = dbService.getStoreId();
-      
-      const sql = supplier 
-        ? `UPDATE suppliers SET name=?, contact_person=?, phone=?, email=?, address=?, version=version+1 WHERE id=? AND store_id=?`
-        : `INSERT INTO suppliers (id, store_id, name, contact_person, phone, email, address) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-      
-      const params = supplier
-        ? [formData.name, formData.contactPerson, formData.phone, formData.email, formData.address, id, storeId]
-        : [id, storeId, formData.name, formData.contactPerson, formData.phone, formData.email, formData.address];
-
-      await dbService.execute(sql, params);
-      await dbService.enqueueSync(supplier ? "SUPPLIER_UPSERT" : "SUPPLIER_UPSERT", id, { id, ...formData, store_id: storeId });
+      await dbService.upsertSupplier({ id: supplier?.id, ...formData });
       
       onSave();
       onClose();

@@ -45,7 +45,7 @@ export const LicenseSettings: React.FC = () => {
     setIsLoading(true);
     try {
       if (window.electronAPI) {
-        const [status, info] = await Promise.all([window.electronAPI.invoke("license:getStatus"), window.electronAPI.invoke("system:getInfo")]);
+        const [status, info] = await Promise.all([window.electronAPI.license.getStatus(), window.electronAPI.system.getInfo()]);
         setLicenseStatus(status);
         setSystemInfo(info);
       }
@@ -61,9 +61,9 @@ export const LicenseSettings: React.FC = () => {
     setIsActivating(true);
     setActivationMsg(null);
     try {
-      const result = await window.electronAPI?.invoke("license:activate", licenseKey.trim());
+      const result = await window.electronAPI?.license.activate(licenseKey.trim());
       if (result?.success) {
-        setActivationMsg({ type: "success", text: `License activated! Expires: ${new Date(result.expiresAt).toLocaleDateString()}` });
+        setActivationMsg({ type: "success", text: result.expiresAt ? `License activated! Expires: ${new Date(result.expiresAt).toLocaleDateString()}` : "License activated successfully." });
         setLicenseKey("");
         await loadData();
       } else {
@@ -77,7 +77,7 @@ export const LicenseSettings: React.FC = () => {
   };
 
   const handleOpenLog = () => {
-    window.electronAPI?.invoke("system:openLogFile");
+    void window.electronAPI?.system.openLogFile();
   };
 
   const handleCopySystemInfo = () => {

@@ -38,7 +38,7 @@ interface POSState {
   startExchangeDraft: (draft: ExchangeDraft) => void;
   cancelExchangeDraft: () => void;
   getExchangeTotals: () => ExchangeTotals;
-  completeOrder: (paymentMethod: string, staffId: string | null, exchangeOptions?: { balanceOutcome?: ExchangeBalanceOutcome }) => Promise<string>;
+  completeOrder: (paymentMethod: string, exchangeOptions?: { balanceOutcome?: ExchangeBalanceOutcome }) => Promise<string>;
 }
 
 import { dbService } from "../services/database";
@@ -153,7 +153,7 @@ export const usePOSStore = create<POSState>()(
           };
         },
 
-        completeOrder: async (paymentMethod: string, staffId: string | null, exchangeOptions?: { balanceOutcome?: ExchangeBalanceOutcome }) => {
+        completeOrder: async (paymentMethod: string, exchangeOptions?: { balanceOutcome?: ExchangeBalanceOutcome }) => {
           const { cart, subtotal, discount, tax, total, customerName, customerId, storeCredit, returnExchangeData, exchangeDraft } = get();
           const orderId = crypto.randomUUID();
 
@@ -168,7 +168,6 @@ export const usePOSStore = create<POSState>()(
               returnCredit: exchangeDraft.returnCredit,
               replacementItems: cart,
               paymentMethod,
-              staffId,
               balanceOutcome: exchangeOptions?.balanceOutcome || (totals.amountDue > 0 ? "extra_paid" : "none"),
               storeCreditUsed: Math.min(totals.returnCredit, totals.newItemsTotal),
             });
@@ -189,7 +188,6 @@ export const usePOSStore = create<POSState>()(
             payment_method: paymentMethod,
             store_credit_used: storeCredit,
             returned_items_json: returnExchangeData ? JSON.stringify(returnExchangeData) : null,
-            staff_id: staffId,
             items: cart,
           };
 

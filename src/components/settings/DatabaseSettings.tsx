@@ -4,7 +4,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { dbService } from "../../services/database";
 import { cn } from "../../lib/utils";
-import { useAuthStore } from "../../store/useAuthStore";
 
 type ActionType = "inventory" | "sales" | "customers" | "full" | "backup" | "restore";
 
@@ -12,7 +11,6 @@ export const DatabaseSettings: React.FC = () => {
   const [confirmingAction, setConfirmingAction] = useState<ActionType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
-  const currentStaff = useAuthStore((state) => state.currentStaff);
 
   const handleAction = async (type: ActionType) => {
     setIsProcessing(true);
@@ -21,16 +19,16 @@ export const DatabaseSettings: React.FC = () => {
       let result;
       switch (type) {
         case "inventory":
-          result = await dbService.clearInventory(currentStaff?.id);
+          result = await dbService.clearInventory();
           break;
         case "sales":
-          result = await dbService.clearSales(currentStaff?.id);
+          result = await dbService.clearSales();
           break;
         case "customers":
-          result = await dbService.clearCustomers(currentStaff?.id);
+          result = await dbService.clearCustomers();
           break;
         case "full":
-          result = await dbService.factoryReset(currentStaff?.id);
+          result = await dbService.factoryReset();
           break;
         case "backup":
           result = await dbService.backup();

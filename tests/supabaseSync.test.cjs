@@ -158,12 +158,14 @@ test("sync payloads are normalized to store-scoped Supabase columns", () => {
 
 test("runtime sync and auth wiring require activation and store-scoped deletes", () => {
   const syncManagerSource = fs.readFileSync(path.join(repoRoot, "electron/syncManager.cjs"), "utf8");
+  const applicationIpcSource = fs.readFileSync(path.join(repoRoot, "electron/applicationIpc.cjs"), "utf8");
   const authStoreSource = fs.readFileSync(path.join(repoRoot, "src/store/useAuthStore.ts"), "utf8");
   const preloadSource = fs.readFileSync(path.join(repoRoot, "electron/preload.cjs"), "utf8");
 
-  assert.match(syncManagerSource, /ipcMain\.handle\("auth:signIn"/);
-  assert.match(syncManagerSource, /ipcMain\.handle\("auth:signOut"/);
-  assert.match(syncManagerSource, /ipcMain\.handle\("auth:getSession"/);
+  assert.doesNotMatch(syncManagerSource, /ipcMain\.handle/);
+  assert.match(applicationIpcSource, /router\.secure\("cloud:signIn", "sync:manage"/);
+  assert.match(applicationIpcSource, /router\.secure\("cloud:signOut", "sync:manage"/);
+  assert.match(applicationIpcSource, /router\.secure\("cloud:getSession", "sync:manage"/);
   assert.match(preloadSource, /cloud:\s*\{/);
   assert.doesNotMatch(authStoreSource, /Mock JWT|api\.inventoriman\.com|store_abc_123/);
   assert.doesNotMatch(syncManagerSource, /"x-store-id"/);
@@ -181,10 +183,12 @@ test("cloud sync settings UI exposes store activation controls", () => {
   assert.match(source, /Activate Store/);
 });
 
-test("renderer sync queue writes the active store id into queue rows", () => {
+test("main process sync queue derives the active store from the authenticated session", () => {
   const databaseSource = fs.readFileSync(path.join(repoRoot, "src/services/database.ts"), "utf8");
+  const applicationIpcSource = fs.readFileSync(path.join(repoRoot, "electron/applicationIpc.cjs"), "utf8");
 
-  assert.match(databaseSource, /const payloadStoreId =/);
-  assert.match(databaseSource, /INSERT INTO sync_queue \(id, store_id, action_type, entity_id, payload_json, status,/);
-  assert.match(databaseSource, /base_version_json, conflict_status/);
+  assert.doesNotMatch(databaseSource, /INSERT INTO sync_queue|enqueueSync/);
+  assert.match(applicationIpcSource, /function queueOperation\(db, storeId/);
+  assert.match(applicationIpcSource, /queueOperation\(db, session\.storeId/);
+  assert.match(applicationIpcSource, /base_version_json, conflict_status/);
 });

@@ -20,7 +20,7 @@ export const SubscriptionBanner: React.FC = () => {
     const checkLicense = async () => {
       if (!window.electronAPI) return;
       try {
-        const status = await window.electronAPI.invoke("license:getStatus");
+        const status = await window.electronAPI.license.getStatus();
         setLicenseStatus(status);
       } catch (err) {
         console.error("License check failed:", err);

@@ -11,6 +11,7 @@ interface AuthState {
   
   // Traditional PIN login (local)
   login: (pin: string) => Promise<boolean>;
+  enrollOwner: (name: string, pin: string, confirmPin: string) => Promise<boolean>;
   
   // New Cloud Login (SaaS)
   cloudLogin: (email: string, pass: string) => Promise<boolean>;
@@ -62,29 +63,40 @@ export const useAuthStore = create<AuthState>()(
       login: async (pin: string) => {
         set({ isLoading: true, error: null });
         try {
-          const { storeId } = get();
-          // Use specific API for PIN verification
-          const staff = await window.electronAPI.staff.verifyPin({ pin, store_id: storeId });
-
-          if (staff) {
-            await window.electronAPI.staff.logAction({ staff_id: staff.id, action: "login" });
-            set({ currentStaff: staff, isAuthenticated: true, isLoading: false });
-            return true;
-          } else {
-            set({ error: "Invalid PIN", isLoading: false });
+          const result = await window.electronAPI.auth.login({ pin });
+          if (!result.success) {
+            const message = result.error.code === "PIN_LOCKED"
+              ? result.error.message
+              : `Invalid PIN${Number.isInteger(result.error.attemptsRemaining) ? `. ${result.error.attemptsRemaining} attempts remaining.` : "."}`;
+            set({ error: message, isLoading: false });
             return false;
           }
+          const session = result.session;
+          set({ currentStaff: session, storeId: session.storeId, isAuthenticated: true, isLoading: false });
+          return true;
         } catch (_err) {
-          set({ error: "Local auth error", isLoading: false });
+          set({ error: "Local authentication failed", isLoading: false });
+          return false;
+        }
+      },
+
+      enrollOwner: async (name, pin, confirmPin) => {
+        set({ isLoading: true, error: null });
+        try {
+          const session = await window.electronAPI.auth.enrollOwner({ name, pin, confirmPin });
+          set({ currentStaff: session, storeId: session.storeId, isAuthenticated: true, isLoading: false });
+          return true;
+        } catch (err) {
+          const message = err instanceof Error && err.message.includes("confirmation")
+            ? "PIN confirmation does not match"
+            : "Owner setup could not be completed";
+          set({ error: message, isLoading: false });
           return false;
         }
       },
 
       logout: () => {
-        const staff = get().currentStaff;
-        if (staff) {
-          window.electronAPI.staff.logAction({ staff_id: staff.id, action: "logout" });
-        }
+        void window.electronAPI.auth.logout().catch(() => undefined);
         set({ currentStaff: null, isAuthenticated: false });
       },
 

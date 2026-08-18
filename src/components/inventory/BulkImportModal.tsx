@@ -103,58 +103,20 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ isOpen, onClos
           return obj;
         });
 
-        // Use transaction or separate calls
-        for (const p of products) {
-          if (!p.name) continue;
-
-          // 1. Handle Brand
-          let brandId = null;
-          const brandName = p.brand || p.category; // fallback to category header if brand not found
-          if (brandName) {
-            const existingBrand = await dbService.getOne<{ id: string }>("SELECT id FROM brands WHERE name = ?", [brandName]);
-            if (existingBrand) {
-              brandId = existingBrand.id;
-            } else {
-              brandId = crypto.randomUUID();
-              await dbService.execute("INSERT INTO brands (id, name) VALUES (?, ?)", [brandId, brandName]);
-            }
-          }
-
-          // 2. Insert Product
-          const productId = crypto.randomUUID();
-          const retailPrice = parseFloat(p["retail price"] || p.price || "0");
-          const wholesalePrice = parseFloat(p["wholesale price"] || "0");
-          const costPrice = parseFloat(p["cost price"] || "0");
-          const stock = parseFloat(p.stock || "0");
-          const metersPerUnit = parseFloat(p["meters per unit"] || p.multiplier || "1.0");
-
-          await dbService.execute(
-            `INSERT INTO products (id, name, sku, brand_id, price, wholesale_price, cost_price, stock, unit, meters_per_unit, description)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              productId,
-              p.name,
-              p.sku || `SKU-${Math.random().toString(36).substring(7).toUpperCase()}`,
-              brandId,
-              retailPrice,
-              wholesalePrice,
-              costPrice,
-              stock,
-              p.unit || "item",
-              metersPerUnit,
-              p.description || "",
-            ],
-          );
-
-          // 3. Log initial stock
-          if (stock > 0) {
-            await dbService.execute(
-              `INSERT INTO inventory_logs (id, product_id, action_type, quantity, previous_stock, current_stock, reason)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [crypto.randomUUID(), productId, "adjustment", stock, 0, stock, "Bulk Import"],
-            );
-          }
-        }
+        const importRows = products.filter((product) => product.name).map((product) => ({
+          name: product.name,
+          sku: product.sku || "",
+          brand: product.brand || product.category || "",
+          price: parseFloat(product["retail price"] || product.price || "0") || 0,
+          wholesalePrice: parseFloat(product["wholesale price"] || "0") || 0,
+          costPrice: parseFloat(product["cost price"] || "0") || 0,
+          stock: parseFloat(product.stock || "0") || 0,
+          unit: product.unit || "item",
+          metersPerUnit: parseFloat(product["meters per unit"] || product.multiplier || "1.0") || 1,
+          description: product.description || "",
+        }));
+        if (importRows.length === 0) throw new Error("No valid products were found in the CSV file");
+        await dbService.bulkImportProducts(importRows);
 
         onSave();
         onClose();

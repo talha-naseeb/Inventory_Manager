@@ -15,16 +15,28 @@ import { useAuthStore } from "./store/useAuthStore";
 import { syncService } from "./services/syncService";
 import { UpdateBanner } from "./components/layout/UpdateBanner";
 import { SubscriptionBanner } from "./components/layout/SubscriptionBanner";
+import { useBusinessProfileStore } from "./store/useBusinessProfileStore";
 
 function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, currentStaff } = useAuthStore();
   const [currentPage, setCurrentPage] = useState("dashboard");
   const [pageParams, setPageParams] = useState<any>(null);
+  const hydrateBusinessProfile = useBusinessProfileStore((state) => state.hydrate);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+    void hydrateBusinessProfile();
+  }, [hydrateBusinessProfile, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && currentStaff?.role === "cashier") setCurrentPage("pos");
+  }, [currentStaff?.role, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
     syncService.start();
     return () => syncService.stop();
-  }, []);
+  }, [isAuthenticated]);
 
   const handleNavigate = (page: string, params?: any) => {
     setCurrentPage(page);

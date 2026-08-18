@@ -1,5 +1,5 @@
 const { log } = require("./logger.cjs");
-const { createInitialOwnerPin, hashPin } = require("./pinService.cjs");
+const { hashPin, verifyPin } = require("./pinService.cjs");
 
 async function ensureColumn(db, table, column, definition) {
   const columns = await db.all(`PRAGMA table_info(${table})`);
@@ -148,6 +148,7 @@ async function runMigrations(db) {
             pin TEXT NOT NULL,
             role TEXT DEFAULT 'cashier',
             status TEXT DEFAULT 'active',
+            requires_pin_setup INTEGER DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);
@@ -181,17 +182,9 @@ async function runMigrations(db) {
     {
       name: "003_seed_default_owner",
       up: async (db) => {
-        const existing = await db.get("SELECT id FROM staff WHERE role = 'owner' LIMIT 1");
-        if (!existing) {
-          log.info("Seeding default owner account...");
-          const initialPin = createInitialOwnerPin();
-          await db.run(
-            "INSERT INTO staff (id, store_id, name, pin, role, status) VALUES (?, ?, ?, ?, ?, ?)",
-            ["admin-001", "default", "System Owner", initialPin, "owner", "active"]
-          );
-        } else {
-          log.info("Default owner already exists; leaving PIN unchanged.");
-        }
+        // Owner creation is intentionally deferred to migration 013, after the
+        // first-run enrollment marker is available. No shared default PIN is seeded.
+        log.info("Default owner PIN seeding disabled; first-run enrollment will be required.");
       }
     },
     {
@@ -410,6 +403,32 @@ async function runMigrations(db) {
         await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_label", "GST"]);
         await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_number", ""]);
         await db.run("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", ["tax_rate_default", "0"]);
+      }
+    },
+    {
+      name: "013_first_run_owner_enrollment",
+      up: async (db) => {
+        await ensureColumn(db, "staff", "requires_pin_setup", "INTEGER DEFAULT 0");
+        const owner = await db.get("SELECT id, pin, pin_hash FROM staff WHERE role = 'owner' LIMIT 1");
+
+        if (!owner) {
+          await db.run(
+            "INSERT INTO staff (id, store_id, name, pin, pin_hash, role, status, requires_pin_setup) VALUES (?, ?, ?, '', NULL, 'owner', 'active', 1)",
+            ["admin-001", "default", "System Owner"],
+          );
+          return;
+        }
+
+        const usesLegacyDefault = owner.id === "admin-001"
+          && (owner.pin === "123456" || verifyPin("123456", owner.pin_hash));
+        if (usesLegacyDefault) {
+          await db.run(
+            "UPDATE staff SET pin = '', pin_hash = NULL, requires_pin_setup = 1 WHERE id = ?",
+            [owner.id],
+          );
+        } else {
+          await db.run("UPDATE staff SET requires_pin_setup = COALESCE(requires_pin_setup, 0) WHERE id = ?", [owner.id]);
+        }
       }
     }
   ];
